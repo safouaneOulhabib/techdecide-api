@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: techdecide-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-techdecide}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - techdecide_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  techdecide_data:
