@@ -4,6 +4,7 @@ import com.techdecide.api.dto.auth.AuthResponse;
 import com.techdecide.api.dto.auth.LoginRequest;
 import com.techdecide.api.dto.auth.RegisterRequest;
 import com.techdecide.api.entity.User;
+import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.repository.UserRepository;
 import com.techdecide.api.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new ConflictException("Email already exists");
         }
 
         User user = User.builder()
