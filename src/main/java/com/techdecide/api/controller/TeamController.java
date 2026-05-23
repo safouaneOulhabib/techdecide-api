@@ -2,6 +2,7 @@ package com.techdecide.api.controller;
 
 import com.techdecide.api.dto.team.CreateTeamRequest;
 import com.techdecide.api.dto.team.TeamDTO;
+import com.techdecide.api.dto.team.UpdateTeamRequest;
 import com.techdecide.api.service.TeamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +46,7 @@ public class TeamController {
     @PutMapping("/{id}")
     public ResponseEntity<TeamDTO> update(
             @PathVariable Long id,
-            @Valid @RequestBody CreateTeamRequest request) {
+            @Valid @RequestBody UpdateTeamRequest request) {
         return ResponseEntity.ok(teamService.update(id, request));
     }
 
