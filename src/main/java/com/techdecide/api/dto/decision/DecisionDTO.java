@@ -1,0 +1,35 @@
+package com.techdecide.api.dto.decision;
+
+import com.techdecide.api.entity.Decision.Status;
+import lombok.Builder;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+public class DecisionDTO {
+
+    private Long id;
+    private String title;
+    private String context;
+    private String decision;
+    private String consequences;
+    private Status status;
+    private String authorName;
+    private String teamName;
+    private List<String> tags;
+    private List<AlternativeDTO> alternatives;
+    private LocalDateTime reviewDate;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    @Data
+    @Builder
+    public static class AlternativeDTO {
+        private Long id;
+        private String name;
+        private String rejectionReason;
+    }
+}
