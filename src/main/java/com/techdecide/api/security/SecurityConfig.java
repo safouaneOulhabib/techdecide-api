@@ -25,12 +25,15 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsServiceImpl userDetailsService;
+    private final JwtAuthEntryPoint jwtAuthEntryPoint;
 
     public SecurityConfig(
             @Lazy JwtAuthFilter jwtAuthFilter,
-            @Lazy UserDetailsServiceImpl userDetailsService) {
+            @Lazy UserDetailsServiceImpl userDetailsService,
+            JwtAuthEntryPoint jwtAuthEntryPoint) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.userDetailsService = userDetailsService;
+        this.jwtAuthEntryPoint = jwtAuthEntryPoint;
     }
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -39,6 +42,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthEntryPoint)
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
