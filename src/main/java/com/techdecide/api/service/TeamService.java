@@ -2,6 +2,7 @@ package com.techdecide.api.service;
 
 import com.techdecide.api.dto.team.CreateTeamRequest;
 import com.techdecide.api.dto.team.TeamDTO;
+import com.techdecide.api.dto.team.UpdateTeamRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.entity.Team;
 import com.techdecide.api.exception.ConflictException;
@@ -60,23 +61,29 @@ public class TeamService {
         return mapToDTO(team);
     }
 
-    public TeamDTO update(Long id, CreateTeamRequest request) {
+    public TeamDTO update(Long id, UpdateTeamRequest request) {
         Team team = teamRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Team", id));
 
-        Organization organization = organizationRepository.findById(request.getOrganizationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Organization", request.getOrganizationId()));
+        if (request.getOrganizationId() != null) {
+            Organization organization = organizationRepository.findById(request.getOrganizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", request.getOrganizationId()));
+            team.setOrganization(organization);
+        }
 
-        boolean nameChanged = !team.getName().equals(request.getName());
-        boolean orgChanged = !team.getOrganization().getId().equals(request.getOrganizationId());
+        String targetName = request.getName() != null ? request.getName() : team.getName();
+        Long targetOrgId = team.getOrganization().getId();
+
+        boolean nameChanged = !team.getName().equals(targetName);
+        boolean orgChanged = request.getOrganizationId() != null
+                && !team.getOrganization().getId().equals(request.getOrganizationId());
 
         if ((nameChanged || orgChanged)
-                && teamRepository.existsByNameAndOrganizationId(request.getName(), request.getOrganizationId())) {
-            throw new ConflictException("Team with name '" + request.getName() + "' already exists in this organization");
+                && teamRepository.existsByNameAndOrganizationId(targetName, targetOrgId)) {
+            throw new ConflictException("Team with name '" + targetName + "' already exists in this organization");
         }
 
         if (request.getName() != null) team.setName(request.getName());
-        team.setOrganization(organization);
 
         Team updated = teamRepository.save(team);
         return mapToDTO(updated);

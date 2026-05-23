@@ -2,6 +2,7 @@ package com.techdecide.api.service;
 
 import com.techdecide.api.dto.organization.CreateOrganizationRequest;
 import com.techdecide.api.dto.organization.OrganizationDTO;
+import com.techdecide.api.dto.organization.UpdateOrganizationRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
@@ -47,11 +48,12 @@ public class OrganizationService {
         return mapToDTO(organization);
     }
 
-    public OrganizationDTO update(Long id, CreateOrganizationRequest request) {
+    public OrganizationDTO update(Long id, UpdateOrganizationRequest request) {
         Organization organization = organizationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization", id));
 
-        if (!organization.getName().equals(request.getName())
+        if (request.getName() != null
+                && !organization.getName().equals(request.getName())
                 && organizationRepository.existsByName(request.getName())) {
             throw new ConflictException("Organization with name '" + request.getName() + "' already exists");
         }

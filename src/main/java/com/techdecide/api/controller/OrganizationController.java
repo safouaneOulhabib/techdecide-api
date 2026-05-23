@@ -2,6 +2,7 @@ package com.techdecide.api.controller;
 
 import com.techdecide.api.dto.organization.CreateOrganizationRequest;
 import com.techdecide.api.dto.organization.OrganizationDTO;
+import com.techdecide.api.dto.organization.UpdateOrganizationRequest;
 import com.techdecide.api.service.OrganizationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +40,7 @@ public class OrganizationController {
     @PutMapping("/{id}")
     public ResponseEntity<OrganizationDTO> update(
             @PathVariable Long id,
-            @Valid @RequestBody CreateOrganizationRequest request) {
+            @Valid @RequestBody UpdateOrganizationRequest request) {
         return ResponseEntity.ok(organizationService.update(id, request));
     }
 
