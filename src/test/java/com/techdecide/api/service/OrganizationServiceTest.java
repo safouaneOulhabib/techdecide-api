@@ -2,6 +2,7 @@ package com.techdecide.api.service;
 
 import com.techdecide.api.dto.organization.CreateOrganizationRequest;
 import com.techdecide.api.dto.organization.OrganizationDTO;
+import com.techdecide.api.dto.organization.UpdateOrganizationRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
@@ -125,7 +126,9 @@ class OrganizationServiceTest {
     @Test
     void update_validRequest_updatesAndReturnsDTO() {
         Organization existing = buildOrg();
-        CreateOrganizationRequest req = buildRequest("Updated Acme");
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest();
+        req.setName("Updated Acme");
+        req.setDescription("A description");
         when(organizationRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(organizationRepository.existsByName("Updated Acme")).thenReturn(false);
         when(organizationRepository.save(any())).thenReturn(existing);
@@ -138,10 +141,12 @@ class OrganizationServiceTest {
 
     @Test
     void update_nonExistingId_throwsResourceNotFoundException() {
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest();
+        req.setName("Name");
         when(organizationRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> organizationService.update(99L, buildRequest("Name")));
+                () -> organizationService.update(99L, req));
         verify(organizationRepository, never()).save(any());
     }
 
@@ -149,7 +154,8 @@ class OrganizationServiceTest {
     void update_duplicateNameOnDifferentOrg_throwsConflictException() {
         Organization existing = buildOrg();
         existing.setName("Acme");
-        CreateOrganizationRequest req = buildRequest("Beta");
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest();
+        req.setName("Beta");
         when(organizationRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(organizationRepository.existsByName("Beta")).thenReturn(true);
 
@@ -161,7 +167,8 @@ class OrganizationServiceTest {
     void update_sameNameAsCurrentOrg_doesNotThrowConflict() {
         Organization existing = buildOrg();
         existing.setName("Acme");
-        CreateOrganizationRequest req = buildRequest("Acme");
+        UpdateOrganizationRequest req = new UpdateOrganizationRequest();
+        req.setName("Acme");
         when(organizationRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(organizationRepository.save(any())).thenReturn(existing);
 
