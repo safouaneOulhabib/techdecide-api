@@ -2,6 +2,7 @@ package com.techdecide.api.service;
 
 import com.techdecide.api.dto.team.CreateTeamRequest;
 import com.techdecide.api.dto.team.TeamDTO;
+import com.techdecide.api.dto.team.UpdateTeamRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.entity.Team;
 import com.techdecide.api.exception.ConflictException;
@@ -156,8 +157,9 @@ class TeamServiceTest {
     @Test
     void update_validRequest_updatesAndReturnsDTO() {
         Team existing = buildTeam();
-        CreateTeamRequest req = buildRequest();
+        UpdateTeamRequest req = new UpdateTeamRequest();
         req.setName("Backend");
+        req.setOrganizationId(1L);
         when(teamRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(organizationRepository.findById(1L)).thenReturn(Optional.of(buildOrg()));
         when(teamRepository.existsByNameAndOrganizationId("Backend", 1L)).thenReturn(false);
@@ -171,31 +173,41 @@ class TeamServiceTest {
 
     @Test
     void update_nonExistingId_throwsResourceNotFoundException() {
+        UpdateTeamRequest req = new UpdateTeamRequest();
+        req.setName("Engineering");
+        req.setOrganizationId(1L);
         when(teamRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> teamService.update(99L, buildRequest()));
+        assertThrows(ResourceNotFoundException.class,
+                () -> teamService.update(99L, req));
         verify(teamRepository, never()).save(any());
     }
 
     @Test
     void update_organizationNotFound_throwsResourceNotFoundException() {
+        UpdateTeamRequest req = new UpdateTeamRequest();
+        req.setName("Engineering");
+        req.setOrganizationId(1L);
         when(teamRepository.findById(1L)).thenReturn(Optional.of(buildTeam()));
         when(organizationRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> teamService.update(1L, buildRequest()));
+        assertThrows(ResourceNotFoundException.class,
+                () -> teamService.update(1L, req));
     }
 
     @Test
     void update_duplicateNameInOrg_throwsConflictException() {
         Team existing = buildTeam();
         existing.setName("OldName");
-        CreateTeamRequest req = buildRequest();
+        UpdateTeamRequest req = new UpdateTeamRequest();
         req.setName("Engineering");
+        req.setOrganizationId(1L);
         when(teamRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(organizationRepository.findById(1L)).thenReturn(Optional.of(buildOrg()));
         when(teamRepository.existsByNameAndOrganizationId("Engineering", 1L)).thenReturn(true);
 
-        assertThrows(ConflictException.class, () -> teamService.update(1L, req));
+        assertThrows(ConflictException.class,
+                () -> teamService.update(1L, req));
     }
 
     // --- delete ---
