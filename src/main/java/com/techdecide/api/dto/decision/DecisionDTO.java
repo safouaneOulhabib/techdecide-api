@@ -1,5 +1,6 @@
 package com.techdecide.api.dto.decision;
 
+import com.techdecide.api.dto.tag.TagDTO;
 import com.techdecide.api.entity.Decision.Status;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +20,7 @@ public class DecisionDTO {
     private Status status;
     private String authorName;
     private String teamName;
-    private List<String> tags;
+    private List<TagDTO> tags;
     private List<AlternativeDTO> alternatives;
     private LocalDateTime reviewDate;
     private LocalDateTime createdAt;
