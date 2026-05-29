@@ -3,6 +3,7 @@ package com.techdecide.api.service;
 import com.techdecide.api.dto.decision.CreateDecisionRequest;
 import com.techdecide.api.dto.decision.DecisionDTO;
 import com.techdecide.api.dto.decision.UpdateDecisionRequest;
+import com.techdecide.api.dto.tag.TagDTO;
 import com.techdecide.api.entity.Alternative;
 import com.techdecide.api.entity.Decision;
 import com.techdecide.api.entity.Tag;
@@ -150,7 +151,11 @@ public class DecisionService {
                 .authorName(decision.getAuthor().getName())
                 .teamName(decision.getTeam().getName())
                 .tags(decision.getTags().stream()
-                        .map(Tag::getName)
+                        .map(tag -> TagDTO.builder()
+                                .id(tag.getId())
+                                .name(tag.getName())
+                                .color(tag.getColor())
+                                .build())
                         .collect(Collectors.toList()))
                 .alternatives(decision.getAlternatives().stream()
                         .map(alt -> DecisionDTO.AlternativeDTO.builder()

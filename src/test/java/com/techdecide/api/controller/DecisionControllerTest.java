@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techdecide.api.dto.decision.CreateDecisionRequest;
 import com.techdecide.api.dto.decision.DecisionDTO;
 import com.techdecide.api.dto.decision.UpdateDecisionRequest;
+import com.techdecide.api.dto.tag.TagDTO;
 import com.techdecide.api.entity.Decision;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.security.JwtService;
@@ -45,7 +46,7 @@ class DecisionControllerTest {
                 .decision("PostgreSQL chosen").consequences("Cost implications")
                 .status(Decision.Status.DRAFT)
                 .authorName("Alice").teamName("Engineering")
-                .tags(List.of("backend")).alternatives(List.of())
+                .tags(List.of(TagDTO.builder().id(1L).name("backend").color("#ff0000").build())).alternatives(List.of())
                 .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
     }
 
