@@ -66,7 +66,10 @@ public class DecisionController {
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         Decision.Status status = Decision.Status.valueOf(body.get("status"));
-        return ResponseEntity.ok(decisionService.updateStatus(id, status));
+        Long supersededById = body.containsKey("supersededById")
+                ? Long.parseLong(body.get("supersededById"))
+                : null;
+        return ResponseEntity.ok(decisionService.updateStatus(id, status, supersededById));
     }
 
     @DeleteMapping("/{id}")

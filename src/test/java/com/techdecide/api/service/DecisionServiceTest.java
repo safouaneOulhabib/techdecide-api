@@ -4,6 +4,8 @@ import com.techdecide.api.dto.decision.CreateDecisionRequest;
 import com.techdecide.api.dto.decision.DecisionDTO;
 import com.techdecide.api.dto.decision.UpdateDecisionRequest;
 import com.techdecide.api.entity.*;
+import com.techdecide.api.exception.BadRequestException;
+import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.TagRepository;
@@ -329,15 +331,15 @@ class DecisionServiceTest {
 
     @Test
     void updateStatus_validId_updatesStatus() {
-        Decision existing = buildDecision();
+        Decision existing = buildDecision(); // DRAFT
         Decision updated = buildDecision();
-        updated.setStatus(Decision.Status.APPROVED);
+        updated.setStatus(Decision.Status.PROPOSED);
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.save(any())).thenReturn(updated);
 
-        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.APPROVED);
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.PROPOSED, null);
 
-        assertThat(result.getStatus()).isEqualTo(Decision.Status.APPROVED);
+        assertThat(result.getStatus()).isEqualTo(Decision.Status.PROPOSED);
     }
 
     @Test
@@ -345,7 +347,90 @@ class DecisionServiceTest {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> decisionService.updateStatus(99L, Decision.Status.APPROVED));
+                () -> decisionService.updateStatus(99L, Decision.Status.PROPOSED, null));
+    }
+
+    @Test
+    void updateStatus_illegalTransition_throwsConflictException() {
+        Decision existing = buildDecision(); // DRAFT
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(ConflictException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null));
+    }
+
+    @Test
+    void updateStatus_supersededWithoutSupersededById_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, null));
+    }
+
+    @Test
+    void updateStatus_supersededWithSelfReferentialId_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 1L));
+    }
+
+    @Test
+    void updateStatus_supersededWithNonExistentSupersededById_throwsResourceNotFoundException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.existsById(999L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 999L));
+    }
+
+    @Test
+    void updateStatus_transitionOutOfSuperseded_throwsConflictException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.SUPERSEDED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(ConflictException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.DRAFT, null));
+    }
+
+    @Test
+    void update_approvedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest()));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void update_rejectedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.REJECTED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest()));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void update_supersededDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.SUPERSEDED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest()));
+        verify(decisionRepository, never()).save(any());
     }
 
     // --- delete ---
@@ -365,6 +450,26 @@ class DecisionServiceTest {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> decisionService.delete(99L));
+        verify(decisionRepository, never()).delete(any());
+    }
+
+    @Test
+    void delete_approvedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class, () -> decisionService.delete(1L));
+        verify(decisionRepository, never()).delete(any());
+    }
+
+    @Test
+    void delete_supersededDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.SUPERSEDED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class, () -> decisionService.delete(1L));
         verify(decisionRepository, never()).delete(any());
     }
 }
