@@ -67,8 +67,9 @@ public class Decision {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @Column(name = "superseded_by_id")
-    private Long supersededById;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "superseded_by_id")
+    private Decision supersededBy;
 
     @PrePersist
     protected void onCreate() {

@@ -23,6 +23,7 @@ public class DecisionDTO {
     private List<TagDTO> tags;
     private List<AlternativeDTO> alternatives;
     private Long supersededById;
+    private String supersededByTitle;
     private LocalDateTime reviewDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -154,7 +154,7 @@ public class DecisionService {
                 throw new BadRequestException(
                         "The superseding decision must be in APPROVED status (was: " + superseding.getStatus() + ")");
             }
-            decision.setSupersededById(supersededById);
+            decision.setSupersededBy(superseding);
         }
 
         decision.setStatus(newStatus);
@@ -180,7 +180,8 @@ public class DecisionService {
                 .decision(decision.getDecision())
                 .consequences(decision.getConsequences())
                 .status(decision.getStatus())
-                .supersededById(decision.getSupersededById())
+                .supersededById(decision.getSupersededBy() != null ? decision.getSupersededBy().getId() : null)
+                .supersededByTitle(decision.getSupersededBy() != null ? decision.getSupersededBy().getTitle() : null)
                 .authorName(decision.getAuthor().getName())
                 .teamName(decision.getTeam().getName())
                 .tags(decision.getTags().stream()

@@ -429,13 +429,37 @@ class DecisionServiceTest {
         superseding.setStatus(Decision.Status.APPROVED);
         Decision saved = buildDecision();
         saved.setStatus(Decision.Status.SUPERSEDED);
-        saved.setSupersededById(2L);
+        saved.setSupersededBy(superseding);
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
         when(decisionRepository.save(any())).thenReturn(saved);
 
         DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
         assertThat(result.getStatus()).isEqualTo(Decision.Status.SUPERSEDED);
+    }
+
+    @Test
+    void updateStatus_supersededByApprovedDecision_dtoPropagatesIdAndTitle() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+
+        Decision superseding = buildDecision();
+        superseding.setId(2L);
+        superseding.setTitle("Use MySQL");
+        superseding.setStatus(Decision.Status.APPROVED);
+
+        Decision saved = buildDecision();
+        saved.setStatus(Decision.Status.SUPERSEDED);
+        saved.setSupersededBy(superseding);
+
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
+
+        assertThat(result.getSupersededById()).isEqualTo(2L);
+        assertThat(result.getSupersededByTitle()).isEqualTo("Use MySQL");
     }
 
     @Test
