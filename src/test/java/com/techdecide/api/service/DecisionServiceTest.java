@@ -384,10 +384,58 @@ class DecisionServiceTest {
         Decision existing = buildDecision();
         existing.setStatus(Decision.Status.APPROVED);
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
-        when(decisionRepository.existsById(999L)).thenReturn(false);
+        when(decisionRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 999L));
+    }
+
+    @Test
+    void updateStatus_supersededByDraftDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        Decision superseding = buildDecision();
+        superseding.setId(2L);
+        superseding.setStatus(Decision.Status.DRAFT);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L));
+        assertThat(ex.getMessage()).contains("APPROVED").contains("DRAFT");
+    }
+
+    @Test
+    void updateStatus_supersededByProposedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        Decision superseding = buildDecision();
+        superseding.setId(2L);
+        superseding.setStatus(Decision.Status.PROPOSED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L));
+        assertThat(ex.getMessage()).contains("APPROVED").contains("PROPOSED");
+    }
+
+    @Test
+    void updateStatus_supersededByApprovedDecision_succeeds() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        Decision superseding = buildDecision();
+        superseding.setId(2L);
+        superseding.setStatus(Decision.Status.APPROVED);
+        Decision saved = buildDecision();
+        saved.setStatus(Decision.Status.SUPERSEDED);
+        saved.setSupersededById(2L);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
+        assertThat(result.getStatus()).isEqualTo(Decision.Status.SUPERSEDED);
     }
 
     @Test
