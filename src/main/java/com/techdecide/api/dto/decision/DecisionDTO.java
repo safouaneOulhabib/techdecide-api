@@ -22,8 +22,7 @@ public class DecisionDTO {
     private String teamName;
     private List<TagDTO> tags;
     private List<AlternativeDTO> alternatives;
-    private Long supersededById;
-    private String supersededByTitle;
+    private DecisionDTO supersededBy;
     private LocalDateTime reviewDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
