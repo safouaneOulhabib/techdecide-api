@@ -458,9 +458,8 @@ class DecisionServiceTest {
 
         DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
 
-        assertThat(result.getSupersededBy()).isNotNull();
-        assertThat(result.getSupersededBy().getId()).isEqualTo(2L);
-        assertThat(result.getSupersededBy().getTitle()).isEqualTo("Use MySQL");
+        assertThat(result.getSupersededById()).isEqualTo(2L);
+        assertThat(result.getSupersededByTitle()).isEqualTo("Use MySQL");
     }
 
     @Test
