@@ -148,8 +148,11 @@ public class DecisionService {
             if (supersededById.equals(id)) {
                 throw new BadRequestException("A decision cannot supersede itself");
             }
-            if (!decisionRepository.existsById(supersededById)) {
-                throw new ResourceNotFoundException("Decision", supersededById);
+            Decision superseding = decisionRepository.findById(supersededById)
+                    .orElseThrow(() -> new ResourceNotFoundException("Decision", supersededById));
+            if (superseding.getStatus() != Decision.Status.APPROVED) {
+                throw new BadRequestException(
+                        "The superseding decision must be in APPROVED status (was: " + superseding.getStatus() + ")");
             }
             decision.setSupersededById(supersededById);
         }
