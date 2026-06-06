@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Data
 @Builder
@@ -65,6 +67,9 @@ public class Decision {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "superseded_by_id")
+    private Long supersededById;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -82,6 +87,18 @@ public class Decision {
         PROPOSED,
         APPROVED,
         REJECTED,
-        SUPERSEDED
+        SUPERSEDED;
+
+        private static final Map<Status, Set<Status>> ALLOWED = Map.of(
+            DRAFT,      Set.of(PROPOSED),
+            PROPOSED,   Set.of(APPROVED, REJECTED, DRAFT),
+            APPROVED,   Set.of(SUPERSEDED),
+            REJECTED,   Set.of(DRAFT),
+            SUPERSEDED, Set.of()
+        );
+
+        public boolean canTransitionTo(Status next) {
+            return ALLOWED.getOrDefault(this, Set.of()).contains(next);
+        }
     }
 }

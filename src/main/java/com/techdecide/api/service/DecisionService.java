@@ -9,6 +9,8 @@ import com.techdecide.api.entity.Decision;
 import com.techdecide.api.entity.Tag;
 import com.techdecide.api.entity.Team;
 import com.techdecide.api.entity.User;
+import com.techdecide.api.exception.BadRequestException;
+import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.TagRepository;
@@ -100,6 +102,10 @@ public class DecisionService {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
 
+        if (decision.getStatus() != Decision.Status.DRAFT && decision.getStatus() != Decision.Status.PROPOSED) {
+            throw new BadRequestException("Cannot edit a decision in status: " + decision.getStatus());
+        }
+
         if (request.getTitle() != null) decision.setTitle(request.getTitle());
         if (request.getContext() != null) decision.setContext(request.getContext());
         if (request.getDecision() != null) decision.setDecision(request.getDecision());
@@ -127,16 +133,39 @@ public class DecisionService {
         return mapToDTO(updated);
     }
 
-    public DecisionDTO updateStatus(Long id, Decision.Status status) {
+    public DecisionDTO updateStatus(Long id, Decision.Status newStatus, Long supersededById) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
-        decision.setStatus(status);
+
+        if (!decision.getStatus().canTransitionTo(newStatus)) {
+            throw new ConflictException("Cannot transition from " + decision.getStatus() + " to " + newStatus);
+        }
+
+        if (newStatus == Decision.Status.SUPERSEDED) {
+            if (supersededById == null) {
+                throw new BadRequestException("supersededById is required when superseding a decision");
+            }
+            if (supersededById.equals(id)) {
+                throw new BadRequestException("A decision cannot supersede itself");
+            }
+            if (!decisionRepository.existsById(supersededById)) {
+                throw new ResourceNotFoundException("Decision", supersededById);
+            }
+            decision.setSupersededById(supersededById);
+        }
+
+        decision.setStatus(newStatus);
         return mapToDTO(decisionRepository.save(decision));
     }
 
     public void delete(Long id) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
+
+        if (decision.getStatus() == Decision.Status.APPROVED || decision.getStatus() == Decision.Status.SUPERSEDED) {
+            throw new BadRequestException("Cannot delete a decision in status: " + decision.getStatus());
+        }
+
         decisionRepository.delete(decision);
     }
 
@@ -148,6 +177,7 @@ public class DecisionService {
                 .decision(decision.getDecision())
                 .consequences(decision.getConsequences())
                 .status(decision.getStatus())
+                .supersededById(decision.getSupersededById())
                 .authorName(decision.getAuthor().getName())
                 .teamName(decision.getTeam().getName())
                 .tags(decision.getTags().stream()

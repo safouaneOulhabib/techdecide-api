@@ -240,15 +240,15 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void updateStatus_validStatus_returns200() throws Exception {
-        DecisionDTO approved = buildDTO();
-        approved.setStatus(Decision.Status.APPROVED);
-        when(decisionService.updateStatus(eq(1L), eq(Decision.Status.APPROVED))).thenReturn(approved);
+        DecisionDTO proposed = buildDTO();
+        proposed.setStatus(Decision.Status.PROPOSED);
+        when(decisionService.updateStatus(eq(1L), eq(Decision.Status.PROPOSED), isNull())).thenReturn(proposed);
 
         mockMvc.perform(patch("/api/decisions/1/status").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("status", "APPROVED"))))
+                        .content(objectMapper.writeValueAsString(Map.of("status", "PROPOSED"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("APPROVED"));
+                .andExpect(jsonPath("$.status").value("PROPOSED"));
     }
 
     // --- DELETE /api/decisions/{id} ---
