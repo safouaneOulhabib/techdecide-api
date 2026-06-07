@@ -113,7 +113,7 @@ public class ReportService {
             return mapToDTO(report);
         }
 
-        Report saved = reportRepository.save(report);
+        Report saved = reportRepository.saveAndFlush(report);
         return mapToDTO(saved);
     }
 
