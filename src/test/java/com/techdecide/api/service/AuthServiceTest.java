@@ -68,6 +68,7 @@ class AuthServiceTest {
 
         AuthResponse response = authService.register(request);
 
+        assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getEmail()).isEqualTo("john@example.com");
         assertThat(response.getName()).isEqualTo("John Doe");
@@ -121,6 +122,7 @@ class AuthServiceTest {
 
         AuthResponse response = authService.login(request);
 
+        assertThat(response.getId()).isEqualTo(1L);
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getEmail()).isEqualTo("john@example.com");
         assertThat(response.getName()).isEqualTo("John Doe");

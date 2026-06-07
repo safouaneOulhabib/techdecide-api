@@ -34,7 +34,7 @@ class AuthControllerTest {
 
     private AuthResponse buildAuthResponse() {
         return AuthResponse.builder()
-                .token("jwt-token").email("john@example.com")
+                .id(1L).token("jwt-token").email("john@example.com")
                 .name("John Doe").role("MEMBER").build();
     }
 
@@ -52,6 +52,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.token").value("jwt-token"))
                 .andExpect(jsonPath("$.email").value("john@example.com"))
                 .andExpect(jsonPath("$.name").value("John Doe"))
@@ -141,6 +142,7 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.token").value("jwt-token"))
                 .andExpect(jsonPath("$.email").value("john@example.com"));
     }
