@@ -221,7 +221,7 @@ class ReportServiceTest {
         req.setIntroduction("Updated Intro");
 
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
-        when(reportRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(reportRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ReportDTO result = reportService.update(1L, req, "alice@example.com");
 
@@ -253,16 +253,17 @@ class ReportServiceTest {
         req.setTitle("New Title");
 
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
-        when(reportRepository.save(any())).thenAnswer(inv -> {
+        when(reportRepository.saveAndFlush(any())).thenAnswer(inv -> {
             Report r = inv.getArgument(0);
-            // Simulate @PreUpdate that JPA fires on save
+            // Simulate @PreUpdate that JPA fires on saveAndFlush
             r.setUpdatedAt(LocalDateTime.now());
             return r;
         });
 
         ReportDTO result = reportService.update(1L, req, "alice@example.com");
 
-        verify(reportRepository).save(report);
+        verify(reportRepository).saveAndFlush(report);
+        // The response DTO must reflect updatedAt, not null — this was the bug
         assertThat(result.getUpdatedAt()).isNotNull();
     }
 
@@ -278,7 +279,7 @@ class ReportServiceTest {
 
         ReportDTO result = reportService.update(1L, req, "alice@example.com");
 
-        verify(reportRepository, never()).save(any());
+        verify(reportRepository, never()).saveAndFlush(any());
         assertThat(result.getUpdatedAt()).isNull();
     }
 
@@ -291,7 +292,7 @@ class ReportServiceTest {
 
         ReportDTO result = reportService.update(1L, new UpdateReportRequest(), "alice@example.com");
 
-        verify(reportRepository, never()).save(any());
+        verify(reportRepository, never()).saveAndFlush(any());
         assertThat(result.getUpdatedAt()).isNull();
     }
 
