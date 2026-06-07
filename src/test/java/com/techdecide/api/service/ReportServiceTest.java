@@ -140,6 +140,7 @@ class ReportServiceTest {
         ReportDTO result = reportService.create(
                 buildCreateRequest(List.of(1L, 2L, 3L, 4L, 5L)), "alice@example.com");
 
+        assertThat(result.getAuthorId()).isEqualTo(1L);
         assertThat(result.getItems()).hasSize(5);
         assertThat(result.getItems()).extracting(ReportItemDTO::getDecisionStatus)
                 .containsExactly("DRAFT", "PROPOSED", "APPROVED", "REJECTED", "SUPERSEDED");
@@ -226,6 +227,8 @@ class ReportServiceTest {
 
         assertThat(result.getTitle()).isEqualTo("Updated Title");
         assertThat(result.getIntroduction()).isEqualTo("Updated Intro");
+        assertThat(result.getAuthorId()).isEqualTo(1L);
+        assertThat(result.getAuthorName()).isEqualTo("Alice");
         assertThat(result.getItems()).hasSize(1);
         assertThat(result.getItems().get(0).getDecisionTitle()).isEqualTo("Original Decision");
     }
@@ -306,6 +309,8 @@ class ReportServiceTest {
 
         ReportDTO result = reportService.getById(1L);
 
+        assertThat(result.getAuthorId()).isEqualTo(1L);
+        assertThat(result.getAuthorName()).isEqualTo("Alice");
         assertThat(result.getItems()).hasSize(1);
         assertThat(result.getItems().get(0).getOriginalDecisionId()).isEqualTo(10L);
         assertThat(result.getItems().get(0).getDecisionTitle()).isEqualTo("Deleted Decision");
@@ -342,5 +347,22 @@ class ReportServiceTest {
         assertThat(result.getItems().get(1).getPosition()).isEqualTo(1);
         assertThat(result.getItems().get(2).getDecisionTitle()).isEqualTo("Third");
         assertThat(result.getItems().get(2).getPosition()).isEqualTo(2);
+    }
+
+    // --- malformed alternatives_json ---
+
+    @Test
+    void getById_malformedAlternativesJson_returnsEmptyListAndDoesNotThrow() {
+        ReportItem item = buildItem(1L, 10L, "Some Decision", "APPROVED", 0);
+        item.setAlternativesJson("not-valid-json{{{");
+        Report report = buildReport(1L, List.of(item));
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+
+        // Must not throw — bad JSON falls back to empty alternatives list
+        ReportDTO result = reportService.getById(1L);
+
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getAlternatives()).isEmpty();
     }
 }
