@@ -35,22 +35,23 @@ public class AuthService {
                 .role(User.Role.MEMBER)
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
         UserDetails userDetails = org.springframework.security.core.userdetails
                 .User.builder()
-                .username(user.getEmail())
-                .password(user.getPassword())
-                .roles(user.getRole().name())
+                .username(savedUser.getEmail())
+                .password(savedUser.getPassword())
+                .roles(savedUser.getRole().name())
                 .build();
 
         String token = jwtService.generateToken(userDetails);
 
         return AuthResponse.builder()
+                .id(savedUser.getId())
                 .token(token)
-                .email(user.getEmail())
-                .name(user.getName())
-                .role(user.getRole().name())
+                .email(savedUser.getEmail())
+                .name(savedUser.getName())
+                .role(savedUser.getRole().name())
                 .build();
     }
 
@@ -75,6 +76,7 @@ public class AuthService {
         String token = jwtService.generateToken(userDetails);
 
         return AuthResponse.builder()
+                .id(user.getId())
                 .token(token)
                 .email(user.getEmail())
                 .name(user.getName())
