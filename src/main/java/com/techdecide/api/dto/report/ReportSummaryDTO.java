@@ -14,5 +14,6 @@ public class ReportSummaryDTO {
     private Long authorId;
     private String authorName;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private int itemCount;
 }

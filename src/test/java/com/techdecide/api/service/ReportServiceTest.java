@@ -244,6 +244,57 @@ class ReportServiceTest {
         verify(reportRepository, never()).save(any());
     }
 
+    @Test
+    void update_withNewTitle_savesAndUpdatedAtIsSetByPreUpdate() {
+        Report report = buildReport(1L, List.of());
+        assertThat(report.getUpdatedAt()).isNull();
+
+        UpdateReportRequest req = new UpdateReportRequest();
+        req.setTitle("New Title");
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(reportRepository.save(any())).thenAnswer(inv -> {
+            Report r = inv.getArgument(0);
+            // Simulate @PreUpdate that JPA fires on save
+            r.setUpdatedAt(LocalDateTime.now());
+            return r;
+        });
+
+        ReportDTO result = reportService.update(1L, req, "alice@example.com");
+
+        verify(reportRepository).save(report);
+        assertThat(result.getUpdatedAt()).isNotNull();
+    }
+
+    @Test
+    void update_withSameValues_doesNotSaveAndUpdatedAtRemainsNull() {
+        Report report = buildReport(1L, List.of()); // title="My Report", introduction="Intro text"
+
+        UpdateReportRequest req = new UpdateReportRequest();
+        req.setTitle("My Report");
+        req.setIntroduction("Intro text");
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+
+        ReportDTO result = reportService.update(1L, req, "alice@example.com");
+
+        verify(reportRepository, never()).save(any());
+        assertThat(result.getUpdatedAt()).isNull();
+    }
+
+    @Test
+    void update_withNullFields_doesNotSaveAndUpdatedAtRemainsNull() {
+        Report report = buildReport(1L, List.of());
+
+        // PUT body with no fields set — nothing to change
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+
+        ReportDTO result = reportService.update(1L, new UpdateReportRequest(), "alice@example.com");
+
+        verify(reportRepository, never()).save(any());
+        assertThat(result.getUpdatedAt()).isNull();
+    }
+
     // --- delete ---
 
     @Test
@@ -364,5 +415,34 @@ class ReportServiceTest {
 
         assertThat(result.getItems()).hasSize(1);
         assertThat(result.getItems().get(0).getAlternatives()).isEmpty();
+    }
+
+    // --- empty alternatives round-trip ---
+
+    @Test
+    void create_decisionWithNoAlternatives_alternativesJsonIsEmptyArrayAndDTOAlternativesIsEmptyList() {
+        Decision decision = buildDecision(1L, "No-Alt Decision", Decision.Status.DRAFT);
+        // alternatives already empty from buildDecision
+
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
+
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        when(reportRepository.save(captor.capture())).thenAnswer(inv -> {
+            Report r = captor.getValue();
+            r.setId(1L);
+            r.setCreatedAt(LocalDateTime.now());
+            return r;
+        });
+
+        ReportDTO result = reportService.create(buildCreateRequest(List.of(1L)), "alice@example.com");
+
+        // Raw column value must be "[]", not null
+        String storedJson = captor.getValue().getItems().get(0).getAlternativesJson();
+        assertThat(storedJson).isEqualTo("[]");
+
+        // DTO alternatives must be an empty list, not null
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getAlternatives()).isNotNull().isEmpty();
     }
 }

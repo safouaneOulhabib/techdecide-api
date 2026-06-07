@@ -16,5 +16,6 @@ public class ReportDTO {
     private Long authorId;
     private String authorName;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private List<ReportItemDTO> items;
 }

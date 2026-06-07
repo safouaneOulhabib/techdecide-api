@@ -99,8 +99,19 @@ public class ReportService {
             throw new ForbiddenException("Only the author can edit this report");
         }
 
-        if (request.getTitle() != null) report.setTitle(request.getTitle());
-        if (request.getIntroduction() != null) report.setIntroduction(request.getIntroduction());
+        boolean changed = false;
+        if (request.getTitle() != null && !request.getTitle().equals(report.getTitle())) {
+            report.setTitle(request.getTitle());
+            changed = true;
+        }
+        if (request.getIntroduction() != null && !request.getIntroduction().equals(report.getIntroduction())) {
+            report.setIntroduction(request.getIntroduction());
+            changed = true;
+        }
+
+        if (!changed) {
+            return mapToDTO(report);
+        }
 
         Report saved = reportRepository.save(report);
         return mapToDTO(saved);
@@ -162,6 +173,7 @@ public class ReportService {
                 .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
                 .createdAt(report.getCreatedAt())
+                .updatedAt(report.getUpdatedAt())
                 .items(itemDTOs)
                 .build();
     }
@@ -190,6 +202,7 @@ public class ReportService {
                 .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
                 .createdAt(report.getCreatedAt())
+                .updatedAt(report.getUpdatedAt())
                 .itemCount(report.getItems() != null ? report.getItems().size() : 0)
                 .build();
     }
