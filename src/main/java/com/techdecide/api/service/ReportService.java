@@ -15,6 +15,7 @@ import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.ReportRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -128,11 +130,13 @@ public class ReportService {
                     .collect(Collectors.toList());
             return objectMapper.writeValueAsString(snapshots);
         } catch (JsonProcessingException e) {
+            log.error("Failed to serialize alternatives for decision id={}: {}",
+                    decision.getId(), e.getMessage());
             return "[]";
         }
     }
 
-    private List<ReportItemDTO.AlternativeSnapshot> deserializeAlternatives(String json) {
+    private List<ReportItemDTO.AlternativeSnapshot> deserializeAlternatives(String json, Long itemId) {
         if (json == null || json.isBlank()) {
             return List.of();
         }
@@ -140,6 +144,8 @@ public class ReportService {
             return objectMapper.readValue(json,
                     new TypeReference<List<ReportItemDTO.AlternativeSnapshot>>() {});
         } catch (JsonProcessingException e) {
+            log.error("Failed to deserialize alternatives_json for report_item id={}, raw value=[{}]: {}",
+                    itemId, json, e.getMessage());
             return List.of();
         }
     }
@@ -153,6 +159,7 @@ public class ReportService {
                 .id(report.getId())
                 .title(report.getTitle())
                 .introduction(report.getIntroduction())
+                .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
                 .createdAt(report.getCreatedAt())
                 .items(itemDTOs)
@@ -171,7 +178,7 @@ public class ReportService {
                 .decisionTeamName(item.getDecisionTeamName())
                 .decisionAuthorName(item.getDecisionAuthorName())
                 .decisionCreatedAt(item.getDecisionCreatedAt())
-                .alternatives(deserializeAlternatives(item.getAlternativesJson()))
+                .alternatives(deserializeAlternatives(item.getAlternativesJson(), item.getId()))
                 .position(item.getPosition())
                 .build();
     }
@@ -180,6 +187,7 @@ public class ReportService {
         return ReportSummaryDTO.builder()
                 .id(report.getId())
                 .title(report.getTitle())
+                .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
                 .createdAt(report.getCreatedAt())
                 .itemCount(report.getItems() != null ? report.getItems().size() : 0)

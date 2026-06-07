@@ -11,6 +11,7 @@ public class ReportSummaryDTO {
 
     private Long id;
     private String title;
+    private Long authorId;
     private String authorName;
     private LocalDateTime createdAt;
     private int itemCount;

@@ -49,14 +49,14 @@ class ReportControllerTest {
 
         return ReportDTO.builder()
                 .id(1L).title("My Report").introduction("Intro")
-                .authorName("Alice").createdAt(LocalDateTime.now())
+                .authorId(1L).authorName("Alice").createdAt(LocalDateTime.now())
                 .items(List.of(item))
                 .build();
     }
 
     private ReportSummaryDTO buildSummaryDTO() {
         return ReportSummaryDTO.builder()
-                .id(1L).title("My Report").authorName("Alice")
+                .id(1L).title("My Report").authorId(1L).authorName("Alice")
                 .createdAt(LocalDateTime.now()).itemCount(1)
                 .build();
     }
@@ -82,6 +82,7 @@ class ReportControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.title").value("My Report"))
+                .andExpect(jsonPath("$.authorId").value(1))
                 .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.items[0].decisionTitle").value("Use PostgreSQL"));
     }
@@ -119,6 +120,7 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$[0].title").value("My Report"))
+                .andExpect(jsonPath("$[0].authorId").value(1))
                 .andExpect(jsonPath("$[0].itemCount").value(1));
     }
 
@@ -137,6 +139,7 @@ class ReportControllerTest {
         mockMvc.perform(get("/api/reports/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.authorId").value(1))
                 .andExpect(jsonPath("$.items[0].decisionStatus").value("APPROVED"));
     }
 
