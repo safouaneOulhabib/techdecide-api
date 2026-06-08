@@ -3,6 +3,7 @@ package com.techdecide.api.service;
 import com.techdecide.api.dto.comment.CommentDTO;
 import com.techdecide.api.dto.comment.CreateCommentRequest;
 import com.techdecide.api.entity.*;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.CommentRepository;
 import com.techdecide.api.repository.DecisionRepository;
@@ -163,20 +164,33 @@ class CommentServiceTest {
     // --- delete ---
 
     @Test
-    void delete_existingId_callsRepositoryDelete() {
+    void delete_ownerRequest_callsRepositoryDelete() {
         Comment existing = buildComment();
         when(commentRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
 
-        commentService.delete(1L);
+        commentService.delete(1L, "alice@example.com");
 
         verify(commentRepository).delete(existing);
+    }
+
+    @Test
+    void delete_nonOwnerRequest_throwsForbiddenException() {
+        Comment existing = buildComment();
+        User other = User.builder().id(2L).name("Bob").email("bob@example.com")
+                .password("pw").role(User.Role.MEMBER).build();
+        when(commentRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(other));
+
+        assertThrows(ForbiddenException.class, () -> commentService.delete(1L, "bob@example.com"));
+        verify(commentRepository, never()).delete(any());
     }
 
     @Test
     void delete_nonExistingId_throwsResourceNotFoundException() {
         when(commentRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> commentService.delete(99L));
+        assertThrows(ResourceNotFoundException.class, () -> commentService.delete(99L, "alice@example.com"));
         verify(commentRepository, never()).delete(any());
     }
 }

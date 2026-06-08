@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techdecide.api.dto.comment.CommentDTO;
 import com.techdecide.api.dto.comment.CreateCommentRequest;
 import com.techdecide.api.entity.Comment;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.security.JwtService;
 import com.techdecide.api.security.TestSecurityConfig;
@@ -176,21 +177,31 @@ class CommentControllerTest {
     @Test
     @WithMockUser
     void delete_existingId_returns204() throws Exception {
-        doNothing().when(commentService).delete(1L);
+        doNothing().when(commentService).delete(eq(1L), anyString());
 
         mockMvc.perform(delete("/api/comments/1").with(csrf()))
                 .andExpect(status().isNoContent());
 
-        verify(commentService).delete(1L);
+        verify(commentService).delete(eq(1L), anyString());
     }
 
     @Test
     @WithMockUser
     void delete_notFound_returns404() throws Exception {
-        doThrow(new ResourceNotFoundException("Comment", 99L)).when(commentService).delete(99L);
+        doThrow(new ResourceNotFoundException("Comment", 99L)).when(commentService).delete(eq(99L), anyString());
 
         mockMvc.perform(delete("/api/comments/99").with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser
+    void delete_notOwner_returns403() throws Exception {
+        doThrow(new ForbiddenException("You are not the author of this comment"))
+                .when(commentService).delete(eq(1L), anyString());
+
+        mockMvc.perform(delete("/api/comments/1").with(csrf()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
