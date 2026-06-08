@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @Builder
@@ -16,4 +17,5 @@ public class ReportSummaryDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private int itemCount;
+    private Map<String, Long> statusCounts;
 }
