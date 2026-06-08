@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -196,6 +197,9 @@ public class ReportService {
     }
 
     private ReportSummaryDTO mapToSummaryDTO(Report report) {
+        List<ReportItem> items = report.getItems() != null ? report.getItems() : List.of();
+        Map<String, Long> statusCounts = items.stream()
+                .collect(Collectors.groupingBy(ReportItem::getDecisionStatus, Collectors.counting()));
         return ReportSummaryDTO.builder()
                 .id(report.getId())
                 .title(report.getTitle())
@@ -203,7 +207,8 @@ public class ReportService {
                 .authorName(report.getAuthor().getName())
                 .createdAt(report.getCreatedAt())
                 .updatedAt(report.getUpdatedAt())
-                .itemCount(report.getItems() != null ? report.getItems().size() : 0)
+                .itemCount(items.size())
+                .statusCounts(statusCounts)
                 .build();
     }
 }
