@@ -5,6 +5,7 @@ import com.techdecide.api.dto.comment.CreateCommentRequest;
 import com.techdecide.api.entity.Comment;
 import com.techdecide.api.entity.Decision;
 import com.techdecide.api.entity.User;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.CommentRepository;
 import com.techdecide.api.repository.DecisionRepository;
@@ -53,9 +54,14 @@ public class CommentService {
                 .collect(Collectors.toList());
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, String requesterEmail) {
         Comment comment = commentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment", id));
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User", null));
+        if (!comment.getAuthor().getId().equals(requester.getId())) {
+            throw new ForbiddenException("You are not the author of this comment");
+        }
         commentRepository.delete(comment);
     }
 
@@ -64,6 +70,7 @@ public class CommentService {
                 .id(comment.getId())
                 .content(comment.getContent())
                 .vote(comment.getVote())
+                .authorId(comment.getAuthor().getId())
                 .authorName(comment.getAuthor().getName())
                 .decisionId(comment.getDecision().getId())
                 .createdAt(comment.getCreatedAt())

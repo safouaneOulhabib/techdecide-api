@@ -36,8 +36,10 @@ public class CommentController {
     }
 
     @DeleteMapping("/api/comments/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        commentService.delete(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        commentService.delete(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 }
