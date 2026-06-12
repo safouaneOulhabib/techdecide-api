@@ -3,6 +3,8 @@ package com.techdecide.api.repository;
 import com.techdecide.api.entity.User;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +19,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @EntityGraph(attributePaths = {"team"})
     List<User> findAllByTeamId(Long teamId);
+
+    @Query("SELECT u FROM User u WHERE u.team IS NULL OR u.team.id != :teamId")
+    List<User> findAvailableForTeam(@Param("teamId") Long teamId);
 }

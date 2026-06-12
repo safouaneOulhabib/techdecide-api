@@ -2,6 +2,7 @@ package com.techdecide.api.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techdecide.api.dto.team.AssignMemberRequest;
+import com.techdecide.api.dto.team.AvailableUserDTO;
 import com.techdecide.api.dto.team.ChangeRoleRequest;
 import com.techdecide.api.dto.team.TeamMemberDTO;
 import com.techdecide.api.exception.BadRequestException;
@@ -41,6 +42,42 @@ class TeamMemberControllerTest {
         return TeamMemberDTO.builder()
                 .userId(2L).name("Alice").email("alice@example.com")
                 .role("MEMBER").teamId(1L).build();
+    }
+
+    // --- GET /api/teams/{teamId}/available-users ---
+
+    @Test
+    @WithMockUser
+    void getAvailableUsers_authenticated_returns200() throws Exception {
+        AvailableUserDTO dto = AvailableUserDTO.builder()
+                .id(3L).name("Bob").email("bob@example.com").build();
+        when(teamMemberService.getAvailableUsers(eq(1L), anyString())).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/teams/1/available-users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(3))
+                .andExpect(jsonPath("$[0].name").value("Bob"))
+                .andExpect(jsonPath("$[0].email").value("bob@example.com"));
+    }
+
+    @Test
+    @WithMockUser
+    void getAvailableUsers_teamNotFound_returns404() throws Exception {
+        when(teamMemberService.getAvailableUsers(eq(99L), anyString()))
+                .thenThrow(new ResourceNotFoundException("Team", 99L));
+
+        mockMvc.perform(get("/api/teams/99/available-users"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser
+    void getAvailableUsers_memberForbidden_returns403() throws Exception {
+        when(teamMemberService.getAvailableUsers(eq(1L), anyString()))
+                .thenThrow(new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members"));
+
+        mockMvc.perform(get("/api/teams/1/available-users"))
+                .andExpect(status().isForbidden());
     }
 
     // --- GET /api/teams/{teamId}/members ---
