@@ -15,6 +15,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
-    @Query("SELECT u FROM User u WHERE u.id NOT IN (SELECT m.user.id FROM TeamMembership m)")
+    @Query("SELECT u FROM User u WHERE u.id NOT IN (SELECT m.user.id FROM TeamMembership m) AND u.appRole <> 'APP_ADMIN'")
     List<User> findUsersWithNoTeamMembership();
 }
