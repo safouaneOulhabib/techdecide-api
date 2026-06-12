@@ -51,9 +51,9 @@ class ReportServiceTest {
         org = Organization.builder().id(1L).name("Acme").build();
         team = Team.builder().id(1L).name("Engineering").organization(org).build();
         author = User.builder().id(1L).name("Alice").email("alice@example.com")
-                .password("pw").role(User.Role.MEMBER).build();
+                .password("pw").appRole("USER").build();
         otherUser = User.builder().id(2L).name("Bob").email("bob@example.com")
-                .password("pw").role(User.Role.MEMBER).build();
+                .password("pw").appRole("USER").build();
     }
 
     private Decision buildDecision(Long id, String title, Decision.Status status) {

@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 @Service
@@ -22,8 +24,20 @@ public class JwtService {
     private long expiration;
 
     public String generateToken(UserDetails userDetails) {
+        Map<String, Object> extraClaims = new HashMap<>();
+        if (userDetails instanceof UserPrincipal principal) {
+            extraClaims.put("appRole", principal.getAppRole());
+            if (principal.getTeamRole() != null) {
+                extraClaims.put("teamRole", principal.getTeamRole());
+            }
+        }
+        return buildToken(userDetails.getUsername(), extraClaims);
+    }
+
+    private String buildToken(String subject, Map<String, Object> extraClaims) {
         return Jwts.builder()
-                .subject(userDetails.getUsername())
+                .claims(extraClaims)
+                .subject(subject)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())

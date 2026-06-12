@@ -9,6 +9,6 @@ public class TeamMemberDTO {
     private Long userId;
     private String name;
     private String email;
-    private String role;
+    private String teamRole;
     private Long teamId;
 }

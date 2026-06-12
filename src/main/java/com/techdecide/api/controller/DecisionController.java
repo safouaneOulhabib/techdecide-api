@@ -64,12 +64,13 @@ public class DecisionController {
     @PatchMapping("/{id}/status")
     public ResponseEntity<DecisionDTO> updateStatus(
             @PathVariable Long id,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
         Decision.Status status = Decision.Status.valueOf(body.get("status"));
         Long supersededById = body.containsKey("supersededById")
                 ? Long.parseLong(body.get("supersededById"))
                 : null;
-        return ResponseEntity.ok(decisionService.updateStatus(id, status, supersededById));
+        return ResponseEntity.ok(decisionService.updateStatus(id, status, supersededById, userDetails.getUsername()));
     }
 
     @DeleteMapping("/{id}")

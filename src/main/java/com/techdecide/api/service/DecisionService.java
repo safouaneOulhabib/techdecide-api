@@ -11,9 +11,11 @@ import com.techdecide.api.entity.Team;
 import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.BadRequestException;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.TagRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.TeamRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class DecisionService {
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
 
     public DecisionDTO create(CreateDecisionRequest request, String authorEmail) {
         User author = userRepository.findByEmail(authorEmail)
@@ -133,12 +136,18 @@ public class DecisionService {
         return mapToDTO(updated);
     }
 
-    public DecisionDTO updateStatus(Long id, Decision.Status newStatus, Long supersededById) {
+    public DecisionDTO updateStatus(Long id, Decision.Status newStatus, Long supersededById, String actorEmail) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
 
         if (!decision.getStatus().canTransitionTo(newStatus)) {
             throw new ConflictException("Cannot transition from " + decision.getStatus() + " to " + newStatus);
+        }
+
+        if (newStatus == Decision.Status.APPROVED
+                || newStatus == Decision.Status.REJECTED
+                || newStatus == Decision.Status.SUPERSEDED) {
+            requireTeamAdminOrAppAdmin(actorEmail, decision.getTeam().getId());
         }
 
         if (newStatus == Decision.Status.SUPERSEDED) {
@@ -170,6 +179,18 @@ public class DecisionService {
         }
 
         decisionRepository.delete(decision);
+    }
+
+    private void requireTeamAdminOrAppAdmin(String actorEmail, Long teamId) {
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if ("APP_ADMIN".equals(actor.getAppRole())) {
+            return;
+        }
+        teamMembershipRepository.findByUserIdAndTeamId(actor.getId(), teamId)
+                .filter(m -> "TEAM_ADMIN".equals(m.getTeamRole()))
+                .orElseThrow(() -> new ForbiddenException(
+                        "Only TEAM_ADMIN or APP_ADMIN can approve, reject, or supersede decisions"));
     }
 
     private DecisionDTO mapToDTO(Decision decision) {

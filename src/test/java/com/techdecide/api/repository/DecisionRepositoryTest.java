@@ -33,7 +33,7 @@ class DecisionRepositoryTest {
                 Team.builder().name("Engineering").organization(org).build());
         user = userRepository.save(
                 User.builder().name("Alice").email("alice@example.com")
-                        .password("pw").role(User.Role.MEMBER).build());
+                        .password("pw").appRole("USER").build());
     }
 
     private Decision saveDecision(String title, String context, String decisionText) {
@@ -98,7 +98,7 @@ class DecisionRepositoryTest {
     void findByAuthorId_differentAuthor_returnsEmpty() {
         User other = userRepository.save(
                 User.builder().name("Bob").email("bob@example.com")
-                        .password("pw").role(User.Role.MEMBER).build());
+                        .password("pw").appRole("USER").build());
         saveDecision("Alice's Decision", "Context", "Choice");
 
         List<Decision> results = decisionRepository.findByAuthorId(other.getId());

@@ -34,7 +34,7 @@ class CommentServiceTest {
 
     private User buildUser() {
         return User.builder().id(1L).name("Alice").email("alice@example.com")
-                .password("pw").role(User.Role.MEMBER).build();
+                .password("pw").appRole("USER").build();
     }
 
     private Decision buildDecision() {
@@ -178,7 +178,7 @@ class CommentServiceTest {
     void delete_nonOwnerRequest_throwsForbiddenException() {
         Comment existing = buildComment();
         User other = User.builder().id(2L).name("Bob").email("bob@example.com")
-                .password("pw").role(User.Role.MEMBER).build();
+                .password("pw").appRole("USER").build();
         when(commentRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(other));
 
