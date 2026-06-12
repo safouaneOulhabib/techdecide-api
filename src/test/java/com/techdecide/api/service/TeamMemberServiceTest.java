@@ -189,6 +189,23 @@ class TeamMemberServiceTest {
     }
 
     @Test
+    void assignMember_targetIsAppAdmin_throwsBadRequest() {
+        User admin = buildAppAdmin();
+        User targetAdmin = buildAppAdmin();
+        targetAdmin.setId(99L);
+        Team team = buildTeam();
+        AssignMemberRequest req = new AssignMemberRequest();
+        req.setUserId(99L);
+
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(targetAdmin));
+
+        assertThrows(BadRequestException.class,
+                () -> teamMemberService.assignMember(1L, req, "admin@example.com"));
+    }
+
+    @Test
     void assignMember_alreadyMember_throwsBadRequest() {
         User admin = buildAppAdmin();
         User target = buildMember();
@@ -269,6 +286,7 @@ class TeamMemberServiceTest {
         when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
         when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
         when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.of(membership));
+        when(teamMembershipRepository.existsByTeamIdAndTeamRoleAndUserIdNot(1L, "TEAM_ADMIN", 2L)).thenReturn(false);
         when(teamMembershipRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         TeamMemberDTO result = teamMemberService.changeRole(1L, 2L, req, "admin@example.com");
@@ -290,11 +308,30 @@ class TeamMemberServiceTest {
         when(teamMembershipRepository.findByUserIdAndTeamId(3L, 1L)).thenReturn(Optional.of(leadMembership));
         when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
         when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.of(targetMembership));
+        when(teamMembershipRepository.existsByTeamIdAndTeamRoleAndUserIdNot(1L, "TEAM_ADMIN", 2L)).thenReturn(false);
         when(teamMembershipRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         TeamMemberDTO result = teamMemberService.changeRole(1L, 2L, req, "lead@example.com");
 
         assertThat(result.getTeamRole()).isEqualTo("TEAM_ADMIN");
+    }
+
+    @Test
+    void changeRole_toTeamAdmin_whenTeamAlreadyHasAdmin_throwsBadRequest() {
+        User admin = buildAppAdmin();
+        User target = buildMember();
+        Team team = buildTeam();
+        TeamMembership membership = buildMemberMembership(target, team);
+        ChangeRoleRequest req = new ChangeRoleRequest();
+        req.setRole("TEAM_ADMIN");
+
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.of(membership));
+        when(teamMembershipRepository.existsByTeamIdAndTeamRoleAndUserIdNot(1L, "TEAM_ADMIN", 2L)).thenReturn(true);
+
+        assertThrows(BadRequestException.class,
+                () -> teamMemberService.changeRole(1L, 2L, req, "admin@example.com"));
     }
 
     @Test

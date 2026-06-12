@@ -61,6 +61,9 @@ public class TeamMemberService {
         Team team = requireTeamExists(teamId);
         User target = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.getUserId()));
+        if ("APP_ADMIN".equals(target.getAppRole())) {
+            throw new BadRequestException("APP_ADMIN users cannot be assigned to a team");
+        }
         if (teamMembershipRepository.existsByUserIdAndTeamId(target.getId(), teamId)) {
             throw new BadRequestException("User is already a member of this team");
         }
@@ -95,6 +98,10 @@ public class TeamMemberService {
         TeamMembership membership = teamMembershipRepository.findByUserIdAndTeamId(userId, teamId)
                 .orElseThrow(() -> new BadRequestException("User is not a member of this team"));
         String newTeamRole = parseTeamRole(request.getRole());
+        if ("TEAM_ADMIN".equals(newTeamRole) &&
+                teamMembershipRepository.existsByTeamIdAndTeamRoleAndUserIdNot(teamId, "TEAM_ADMIN", userId)) {
+            throw new BadRequestException("Team already has a TEAM_ADMIN");
+        }
         membership.setTeamRole(newTeamRole);
         TeamMembership saved = teamMembershipRepository.save(membership);
         return mapToDTO(saved);
