@@ -1,6 +1,7 @@
 package com.techdecide.api.controller;
 
 import com.techdecide.api.dto.team.AssignMemberRequest;
+import com.techdecide.api.dto.team.AvailableUserDTO;
 import com.techdecide.api.dto.team.ChangeRoleRequest;
 import com.techdecide.api.dto.team.TeamMemberDTO;
 import com.techdecide.api.service.TeamMemberService;
@@ -15,20 +16,27 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/teams/{teamId}/members")
+@RequestMapping("/api/teams/{teamId}")
 @RequiredArgsConstructor
 public class TeamMemberController {
 
     private final TeamMemberService teamMemberService;
 
-    @GetMapping
+    @GetMapping("/available-users")
+    public ResponseEntity<List<AvailableUserDTO>> getAvailableUsers(
+            @PathVariable Long teamId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(teamMemberService.getAvailableUsers(teamId, userDetails.getUsername()));
+    }
+
+    @GetMapping("/members")
     public ResponseEntity<List<TeamMemberDTO>> getMembers(
             @PathVariable Long teamId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(teamMemberService.getMembers(teamId, userDetails.getUsername()));
     }
 
-    @PostMapping
+    @PostMapping("/members")
     public ResponseEntity<TeamMemberDTO> assignMember(
             @PathVariable Long teamId,
             @Valid @RequestBody AssignMemberRequest request,
@@ -37,7 +45,7 @@ public class TeamMemberController {
                 .body(teamMemberService.assignMember(teamId, request, userDetails.getUsername()));
     }
 
-    @DeleteMapping("/{userId}")
+    @DeleteMapping("/members/{userId}")
     public ResponseEntity<Void> removeMember(
             @PathVariable Long teamId,
             @PathVariable Long userId,
@@ -46,7 +54,7 @@ public class TeamMemberController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{userId}")
+    @PatchMapping("/members/{userId}")
     public ResponseEntity<TeamMemberDTO> changeRole(
             @PathVariable Long teamId,
             @PathVariable Long userId,

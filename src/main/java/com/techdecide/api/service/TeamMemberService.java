@@ -1,6 +1,7 @@
 package com.techdecide.api.service;
 
 import com.techdecide.api.dto.team.AssignMemberRequest;
+import com.techdecide.api.dto.team.AvailableUserDTO;
 import com.techdecide.api.dto.team.ChangeRoleRequest;
 import com.techdecide.api.dto.team.TeamMemberDTO;
 import com.techdecide.api.entity.Team;
@@ -24,6 +25,21 @@ public class TeamMemberService {
 
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
+
+    @Transactional(readOnly = true)
+    public List<AvailableUserDTO> getAvailableUsers(Long teamId, String currentUserEmail) {
+        User currentUser = resolveUser(currentUserEmail);
+        requireAdminOrTechLead(currentUser);
+        requireTeamExists(teamId);
+        return userRepository.findAvailableForTeam(teamId)
+                .stream()
+                .map(u -> AvailableUserDTO.builder()
+                        .id(u.getId())
+                        .name(u.getName())
+                        .email(u.getEmail())
+                        .build())
+                .collect(Collectors.toList());
+    }
 
     public List<TeamMemberDTO> getMembers(Long teamId, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
