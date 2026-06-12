@@ -4,11 +4,13 @@ import com.techdecide.api.dto.decision.CreateDecisionRequest;
 import com.techdecide.api.dto.decision.DecisionDTO;
 import com.techdecide.api.dto.decision.UpdateDecisionRequest;
 import com.techdecide.api.entity.*;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.BadRequestException;
 import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.TagRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.TeamRepository;
 import com.techdecide.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -34,11 +36,21 @@ class DecisionServiceTest {
     @Mock private TeamRepository teamRepository;
     @Mock private UserRepository userRepository;
     @Mock private TagRepository tagRepository;
+    @Mock private TeamMembershipRepository teamMembershipRepository;
     @InjectMocks private DecisionService decisionService;
 
     private User buildUser() {
         return User.builder().id(1L).name("Alice").email("alice@example.com")
-                .password("pw").role(User.Role.MEMBER).build();
+                .password("pw").appRole("USER").build();
+    }
+
+    private User buildAppAdmin() {
+        return User.builder().id(99L).name("Admin").email("admin@example.com")
+                .password("pw").appRole("APP_ADMIN").build();
+    }
+
+    private void mockGovernanceAsAppAdmin() {
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
     }
 
     private Organization buildOrg() {
@@ -337,7 +349,7 @@ class DecisionServiceTest {
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.save(any())).thenReturn(updated);
 
-        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.PROPOSED, null);
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.PROPOSED, null, "alice@example.com");
 
         assertThat(result.getStatus()).isEqualTo(Decision.Status.PROPOSED);
     }
@@ -347,7 +359,7 @@ class DecisionServiceTest {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> decisionService.updateStatus(99L, Decision.Status.PROPOSED, null));
+                () -> decisionService.updateStatus(99L, Decision.Status.PROPOSED, null, "alice@example.com"));
     }
 
     @Test
@@ -356,38 +368,41 @@ class DecisionServiceTest {
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ConflictException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null));
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "alice@example.com"));
     }
 
     @Test
     void updateStatus_supersededWithoutSupersededById_throwsBadRequestException() {
         Decision existing = buildDecision();
         existing.setStatus(Decision.Status.APPROVED);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(BadRequestException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, null));
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, null, "admin@example.com"));
     }
 
     @Test
     void updateStatus_supersededWithSelfReferentialId_throwsBadRequestException() {
         Decision existing = buildDecision();
         existing.setStatus(Decision.Status.APPROVED);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(BadRequestException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 1L));
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 1L, "admin@example.com"));
     }
 
     @Test
     void updateStatus_supersededWithNonExistentSupersededById_throwsResourceNotFoundException() {
         Decision existing = buildDecision();
         existing.setStatus(Decision.Status.APPROVED);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 999L));
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 999L, "admin@example.com"));
     }
 
     @Test
@@ -397,11 +412,12 @@ class DecisionServiceTest {
         Decision superseding = buildDecision();
         superseding.setId(2L);
         superseding.setStatus(Decision.Status.DRAFT);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L));
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L, "admin@example.com"));
         assertThat(ex.getMessage()).contains("APPROVED").contains("DRAFT");
     }
 
@@ -412,11 +428,12 @@ class DecisionServiceTest {
         Decision superseding = buildDecision();
         superseding.setId(2L);
         superseding.setStatus(Decision.Status.PROPOSED);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
 
         BadRequestException ex = assertThrows(BadRequestException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L));
+                () -> decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L, "admin@example.com"));
         assertThat(ex.getMessage()).contains("APPROVED").contains("PROPOSED");
     }
 
@@ -430,11 +447,12 @@ class DecisionServiceTest {
         Decision saved = buildDecision();
         saved.setStatus(Decision.Status.SUPERSEDED);
         saved.setSupersededBy(superseding);
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
         when(decisionRepository.save(any())).thenReturn(saved);
 
-        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L, "admin@example.com");
         assertThat(result.getStatus()).isEqualTo(Decision.Status.SUPERSEDED);
     }
 
@@ -452,11 +470,12 @@ class DecisionServiceTest {
         saved.setStatus(Decision.Status.SUPERSEDED);
         saved.setSupersededBy(superseding);
 
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(superseding));
         when(decisionRepository.save(any())).thenReturn(saved);
 
-        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L);
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L, "admin@example.com");
 
         assertThat(result.getSupersededById()).isEqualTo(2L);
         assertThat(result.getSupersededByTitle()).isEqualTo("Use MySQL");
@@ -469,7 +488,59 @@ class DecisionServiceTest {
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ConflictException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.DRAFT, null));
+                () -> decisionService.updateStatus(1L, Decision.Status.DRAFT, null, "alice@example.com"));
+    }
+
+    @Test
+    void updateStatus_memberCannotApprove_throwsForbiddenException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        User member = buildUser();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
+        when(teamMembershipRepository.findByUserIdAndTeamId(member.getId(), existing.getTeam().getId()))
+                .thenReturn(Optional.empty());
+
+        assertThrows(com.techdecide.api.exception.ForbiddenException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "alice@example.com"));
+    }
+
+    @Test
+    void updateStatus_teamAdminCanApproveInOwnTeam() {
+        Team team = buildTeam();
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        existing.setTeam(team);
+
+        User teamAdmin = User.builder().id(5L).name("Lead").email("lead@example.com")
+                .password("pw").appRole("USER").build();
+        TeamMembership membership = TeamMembership.builder()
+                .id(1L).user(teamAdmin).team(team).teamRole("TEAM_ADMIN").build();
+
+        Decision saved = buildDecision();
+        saved.setStatus(Decision.Status.APPROVED);
+
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("lead@example.com")).thenReturn(Optional.of(teamAdmin));
+        when(teamMembershipRepository.findByUserIdAndTeamId(5L, 1L)).thenReturn(Optional.of(membership));
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "lead@example.com");
+        assertThat(result.getStatus()).isEqualTo(Decision.Status.APPROVED);
+    }
+
+    @Test
+    void updateStatus_appAdminCanApproveAnyTeam() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        Decision saved = buildDecision();
+        saved.setStatus(Decision.Status.APPROVED);
+        mockGovernanceAsAppAdmin();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "admin@example.com");
+        assertThat(result.getStatus()).isEqualTo(Decision.Status.APPROVED);
     }
 
     @Test

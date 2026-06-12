@@ -242,7 +242,7 @@ class DecisionControllerTest {
     void updateStatus_validStatus_returns200() throws Exception {
         DecisionDTO proposed = buildDTO();
         proposed.setStatus(Decision.Status.PROPOSED);
-        when(decisionService.updateStatus(eq(1L), eq(Decision.Status.PROPOSED), isNull())).thenReturn(proposed);
+        when(decisionService.updateStatus(eq(1L), eq(Decision.Status.PROPOSED), isNull(), anyString())).thenReturn(proposed);
 
         mockMvc.perform(patch("/api/decisions/1/status").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

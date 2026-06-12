@@ -34,9 +34,9 @@ class CommentRepositoryTest {
                 Team.builder().name("Engineering").organization(org).build());
 
         alice = userRepository.save(User.builder().name("Alice").email("alice@example.com")
-                .password("pw").role(User.Role.MEMBER).build());
+                .password("pw").appRole("USER").build());
         bob = userRepository.save(User.builder().name("Bob").email("bob@example.com")
-                .password("pw").role(User.Role.MEMBER).build());
+                .password("pw").appRole("USER").build());
 
         decision = decisionRepository.save(Decision.builder()
                 .title("Use PostgreSQL").context("Context").decision("Choice")

@@ -26,9 +26,6 @@ public class Team {
     private Organization organization;
 
     @OneToMany(mappedBy = "team", cascade = CascadeType.ALL)
-    private List<User> members;
-
-    @OneToMany(mappedBy = "team", cascade = CascadeType.ALL)
     private List<Decision> decisions;
 
     @Column(name = "created_at", updatable = false)

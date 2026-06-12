@@ -41,7 +41,7 @@ class TeamMemberControllerTest {
     private TeamMemberDTO buildDTO() {
         return TeamMemberDTO.builder()
                 .userId(2L).name("Alice").email("alice@example.com")
-                .role("MEMBER").teamId(1L).build();
+                .teamRole("MEMBER").teamId(1L).build();
     }
 
     // --- GET /api/teams/{teamId}/available-users ---
@@ -74,7 +74,7 @@ class TeamMemberControllerTest {
     @WithMockUser
     void getAvailableUsers_memberForbidden_returns403() throws Exception {
         when(teamMemberService.getAvailableUsers(eq(1L), anyString()))
-                .thenThrow(new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members"));
+                .thenThrow(new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
 
         mockMvc.perform(get("/api/teams/1/available-users"))
                 .andExpect(status().isForbidden());
@@ -91,7 +91,7 @@ class TeamMemberControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].userId").value(2))
                 .andExpect(jsonPath("$[0].name").value("Alice"))
-                .andExpect(jsonPath("$[0].role").value("MEMBER"));
+                .andExpect(jsonPath("$[0].teamRole").value("MEMBER"));
     }
 
     @Test
@@ -104,7 +104,7 @@ class TeamMemberControllerTest {
     @WithMockUser
     void getMembers_forbidden_returns403() throws Exception {
         when(teamMemberService.getMembers(eq(1L), anyString()))
-                .thenThrow(new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members"));
+                .thenThrow(new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
 
         mockMvc.perform(get("/api/teams/1/members"))
                 .andExpect(status().isForbidden());
@@ -166,7 +166,7 @@ class TeamMemberControllerTest {
         AssignMemberRequest req = new AssignMemberRequest();
         req.setUserId(2L);
         when(teamMemberService.assignMember(eq(1L), any(), anyString()))
-                .thenThrow(new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members"));
+                .thenThrow(new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
 
         mockMvc.perform(post("/api/teams/1/members")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -206,7 +206,7 @@ class TeamMemberControllerTest {
     @Test
     @WithMockUser
     void removeMember_forbidden_returns403() throws Exception {
-        doThrow(new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members"))
+        doThrow(new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"))
                 .when(teamMemberService).removeMember(eq(1L), eq(2L), anyString());
 
         mockMvc.perform(delete("/api/teams/1/members/2"))
@@ -229,7 +229,7 @@ class TeamMemberControllerTest {
     @WithMockUser
     void changeRole_validRequest_returns200() throws Exception {
         ChangeRoleRequest req = new ChangeRoleRequest();
-        req.setRole("TECH_LEAD");
+        req.setRole("TEAM_ADMIN");
         when(teamMemberService.changeRole(eq(1L), eq(2L), any(), anyString()))
                 .thenReturn(buildDTO());
 
@@ -243,7 +243,7 @@ class TeamMemberControllerTest {
     @Test
     void changeRole_unauthenticated_returns401() throws Exception {
         ChangeRoleRequest req = new ChangeRoleRequest();
-        req.setRole("TECH_LEAD");
+        req.setRole("TEAM_ADMIN");
 
         mockMvc.perform(patch("/api/teams/1/members/2")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -266,11 +266,11 @@ class TeamMemberControllerTest {
 
     @Test
     @WithMockUser
-    void changeRole_techLeadForbidden_returns403() throws Exception {
+    void changeRole_memberForbidden_returns403() throws Exception {
         ChangeRoleRequest req = new ChangeRoleRequest();
         req.setRole("MEMBER");
         when(teamMemberService.changeRole(eq(1L), eq(2L), any(), anyString()))
-                .thenThrow(new ForbiddenException("Only ADMIN can change a user's role"));
+                .thenThrow(new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
 
         mockMvc.perform(patch("/api/teams/1/members/2")
                         .contentType(MediaType.APPLICATION_JSON)

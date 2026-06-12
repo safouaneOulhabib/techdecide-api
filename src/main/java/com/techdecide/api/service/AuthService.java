@@ -3,14 +3,16 @@ package com.techdecide.api.service;
 import com.techdecide.api.dto.auth.AuthResponse;
 import com.techdecide.api.dto.auth.LoginRequest;
 import com.techdecide.api.dto.auth.RegisterRequest;
+import com.techdecide.api.entity.TeamMembership;
 import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import com.techdecide.api.security.JwtService;
+import com.techdecide.api.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
@@ -32,26 +35,25 @@ public class AuthService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(User.Role.MEMBER)
+                .appRole("USER")
                 .build();
 
         User savedUser = userRepository.save(user);
 
-        UserDetails userDetails = org.springframework.security.core.userdetails
-                .User.builder()
-                .username(savedUser.getEmail())
-                .password(savedUser.getPassword())
-                .roles(savedUser.getRole().name())
-                .build();
+        UserPrincipal principal = new UserPrincipal(
+                savedUser.getId(), savedUser.getEmail(), savedUser.getPassword(),
+                savedUser.getAppRole(), null
+        );
 
-        String token = jwtService.generateToken(userDetails);
+        String token = jwtService.generateToken(principal);
 
         return AuthResponse.builder()
                 .id(savedUser.getId())
                 .token(token)
                 .email(savedUser.getEmail())
                 .name(savedUser.getName())
-                .role(savedUser.getRole().name())
+                .appRole(savedUser.getAppRole())
+                .teamRole(null)
                 .build();
     }
 
@@ -66,21 +68,24 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        UserDetails userDetails = org.springframework.security.core.userdetails
-                .User.builder()
-                .username(user.getEmail())
-                .password(user.getPassword())
-                .roles(user.getRole().name())
-                .build();
+        String teamRole = teamMembershipRepository.findByUserId(user.getId())
+                .map(TeamMembership::getTeamRole)
+                .orElse(null);
 
-        String token = jwtService.generateToken(userDetails);
+        UserPrincipal principal = new UserPrincipal(
+                user.getId(), user.getEmail(), user.getPassword(),
+                user.getAppRole(), teamRole
+        );
+
+        String token = jwtService.generateToken(principal);
 
         return AuthResponse.builder()
                 .id(user.getId())
                 .token(token)
                 .email(user.getEmail())
                 .name(user.getName())
-                .role(user.getRole().name())
+                .appRole(user.getAppRole())
+                .teamRole(teamRole)
                 .build();
     }
 }

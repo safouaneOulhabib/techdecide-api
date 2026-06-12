@@ -35,7 +35,7 @@ class AuthControllerTest {
     private AuthResponse buildAuthResponse() {
         return AuthResponse.builder()
                 .id(1L).token("jwt-token").email("john@example.com")
-                .name("John Doe").role("MEMBER").build();
+                .name("John Doe").appRole("USER").teamRole(null).build();
     }
 
     // --- /api/auth/register ---
@@ -56,7 +56,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.token").value("jwt-token"))
                 .andExpect(jsonPath("$.email").value("john@example.com"))
                 .andExpect(jsonPath("$.name").value("John Doe"))
-                .andExpect(jsonPath("$.role").value("MEMBER"));
+                .andExpect(jsonPath("$.appRole").value("USER"));
     }
 
     @Test

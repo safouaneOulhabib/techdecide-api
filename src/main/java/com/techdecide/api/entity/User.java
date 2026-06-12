@@ -33,13 +33,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id")
-    private Team team;
+    @Column(name = "app_role", nullable = false)
+    @Builder.Default
+    private String appRole = "USER";
 
     @OneToMany(mappedBy = "author", cascade = CascadeType.ALL)
     private List<Decision> decisions;
@@ -52,12 +48,9 @@ public class User {
 
     @PrePersist
     protected void onCreate() {
+        if (appRole == null) {
+            appRole = "USER";
+        }
         createdAt = LocalDateTime.now();
-    }
-
-    public enum Role {
-        ADMIN,
-        TECH_LEAD,
-        MEMBER
     }
 }

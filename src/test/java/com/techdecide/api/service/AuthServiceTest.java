@@ -5,6 +5,7 @@ import com.techdecide.api.dto.auth.LoginRequest;
 import com.techdecide.api.dto.auth.RegisterRequest;
 import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import com.techdecide.api.security.JwtService;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     @Mock private UserRepository userRepository;
+    @Mock private TeamMembershipRepository teamMembershipRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtService jwtService;
     @Mock private AuthenticationManager authenticationManager;
@@ -54,7 +56,7 @@ class AuthServiceTest {
                 .name("John Doe")
                 .email("john@example.com")
                 .password("encoded-password")
-                .role(User.Role.MEMBER)
+                .appRole("USER")
                 .build();
     }
 
@@ -72,7 +74,7 @@ class AuthServiceTest {
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getEmail()).isEqualTo("john@example.com");
         assertThat(response.getName()).isEqualTo("John Doe");
-        assertThat(response.getRole()).isEqualTo("MEMBER");
+        assertThat(response.getAppRole()).isEqualTo("USER");
     }
 
     @Test
@@ -100,7 +102,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_newUserHasMemberRole() {
+    void register_newUserHasUserAppRole() {
         RegisterRequest request = buildRegisterRequest();
         when(userRepository.existsByEmail(any())).thenReturn(false);
         when(passwordEncoder.encode(any())).thenReturn("encoded");
@@ -109,7 +111,7 @@ class AuthServiceTest {
 
         authService.register(request);
 
-        verify(userRepository).save(argThat(u -> u.getRole() == User.Role.MEMBER));
+        verify(userRepository).save(argThat(u -> "USER".equals(u.getAppRole())));
     }
 
     @Test
@@ -126,7 +128,7 @@ class AuthServiceTest {
         assertThat(response.getToken()).isEqualTo("jwt-token");
         assertThat(response.getEmail()).isEqualTo("john@example.com");
         assertThat(response.getName()).isEqualTo("John Doe");
-        assertThat(response.getRole()).isEqualTo("MEMBER");
+        assertThat(response.getAppRole()).isEqualTo("USER");
     }
 
     @Test

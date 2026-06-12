@@ -5,10 +5,12 @@ import com.techdecide.api.dto.team.AvailableUserDTO;
 import com.techdecide.api.dto.team.ChangeRoleRequest;
 import com.techdecide.api.dto.team.TeamMemberDTO;
 import com.techdecide.api.entity.Team;
+import com.techdecide.api.entity.TeamMembership;
 import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.BadRequestException;
 import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.TeamRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,13 +27,14 @@ public class TeamMemberService {
 
     private final UserRepository userRepository;
     private final TeamRepository teamRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
 
     @Transactional(readOnly = true)
     public List<AvailableUserDTO> getAvailableUsers(Long teamId, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdminOrTechLead(currentUser);
+        requireAdminOrTeamAdmin(currentUser, teamId);
         requireTeamExists(teamId);
-        return userRepository.findAvailableForTeam(teamId)
+        return userRepository.findUsersWithNoTeamMembership()
                 .stream()
                 .map(u -> AvailableUserDTO.builder()
                         .id(u.getId())
@@ -41,11 +44,12 @@ public class TeamMemberService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<TeamMemberDTO> getMembers(Long teamId, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdminOrTechLead(currentUser);
+        requireAdminOrTeamAdmin(currentUser, teamId);
         requireTeamExists(teamId);
-        return userRepository.findAllByTeamId(teamId)
+        return teamMembershipRepository.findByTeamId(teamId)
                 .stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -53,42 +57,46 @@ public class TeamMemberService {
 
     public TeamMemberDTO assignMember(Long teamId, AssignMemberRequest request, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdminOrTechLead(currentUser);
+        requireAdminOrTeamAdmin(currentUser, teamId);
         Team team = requireTeamExists(teamId);
         User target = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User", request.getUserId()));
-        target.setTeam(team);
-        User saved = userRepository.save(target);
+        if (teamMembershipRepository.existsByUserIdAndTeamId(target.getId(), teamId)) {
+            throw new BadRequestException("User is already a member of this team");
+        }
+        TeamMembership membership = TeamMembership.builder()
+                .user(target)
+                .team(team)
+                .teamRole("MEMBER")
+                .build();
+        TeamMembership saved = teamMembershipRepository.save(membership);
         return mapToDTO(saved);
     }
 
     public void removeMember(Long teamId, Long userId, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdminOrTechLead(currentUser);
+        requireAdminOrTeamAdmin(currentUser, teamId);
         if (currentUser.getId().equals(userId)) {
             throw new BadRequestException("Cannot remove yourself from a team");
         }
         requireTeamExists(teamId);
-        User target = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        requireUserInTeam(target, teamId);
-        target.setTeam(null);
-        userRepository.save(target);
+        TeamMembership membership = teamMembershipRepository.findByUserIdAndTeamId(userId, teamId)
+                .orElseThrow(() -> new BadRequestException("User is not a member of this team"));
+        teamMembershipRepository.delete(membership);
     }
 
     public TeamMemberDTO changeRole(Long teamId, Long userId, ChangeRoleRequest request, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdmin(currentUser);
+        requireAdminOrTeamAdmin(currentUser, teamId);
         if (currentUser.getId().equals(userId)) {
             throw new BadRequestException("Cannot change your own role");
         }
         requireTeamExists(teamId);
-        User target = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        requireUserInTeam(target, teamId);
-        User.Role newRole = parseRole(request.getRole());
-        target.setRole(newRole);
-        User saved = userRepository.save(target);
+        TeamMembership membership = teamMembershipRepository.findByUserIdAndTeamId(userId, teamId)
+                .orElseThrow(() -> new BadRequestException("User is not a member of this team"));
+        String newTeamRole = parseTeamRole(request.getRole());
+        membership.setTeamRole(newTeamRole);
+        TeamMembership saved = teamMembershipRepository.save(membership);
         return mapToDTO(saved);
     }
 
@@ -102,39 +110,29 @@ public class TeamMemberService {
                 .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
     }
 
-    private void requireAdminOrTechLead(User user) {
-        if (user.getRole() != User.Role.ADMIN && user.getRole() != User.Role.TECH_LEAD) {
-            throw new ForbiddenException("Only ADMIN or TECH_LEAD can manage team members");
+    private void requireAdminOrTeamAdmin(User user, Long teamId) {
+        if ("APP_ADMIN".equals(user.getAppRole())) {
+            return;
         }
+        teamMembershipRepository.findByUserIdAndTeamId(user.getId(), teamId)
+                .filter(m -> "TEAM_ADMIN".equals(m.getTeamRole()))
+                .orElseThrow(() -> new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
     }
 
-    private void requireAdmin(User user) {
-        if (user.getRole() != User.Role.ADMIN) {
-            throw new ForbiddenException("Only ADMIN can change a user's role");
+    private String parseTeamRole(String role) {
+        if ("TEAM_ADMIN".equals(role) || "MEMBER".equals(role)) {
+            return role;
         }
+        throw new BadRequestException("Invalid team role: " + role + ". Must be TEAM_ADMIN or MEMBER");
     }
 
-    private void requireUserInTeam(User user, Long teamId) {
-        if (user.getTeam() == null || !user.getTeam().getId().equals(teamId)) {
-            throw new BadRequestException("User is not a member of this team");
-        }
-    }
-
-    private User.Role parseRole(String role) {
-        try {
-            return User.Role.valueOf(role);
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException("Invalid role: " + role);
-        }
-    }
-
-    private TeamMemberDTO mapToDTO(User user) {
+    private TeamMemberDTO mapToDTO(TeamMembership membership) {
         return TeamMemberDTO.builder()
-                .userId(user.getId())
-                .name(user.getName())
-                .email(user.getEmail())
-                .role(user.getRole().name())
-                .teamId(user.getTeam() != null ? user.getTeam().getId() : null)
+                .userId(membership.getUser().getId())
+                .name(membership.getUser().getName())
+                .email(membership.getUser().getEmail())
+                .teamRole(membership.getTeamRole())
+                .teamId(membership.getTeam().getId())
                 .build();
     }
 }
