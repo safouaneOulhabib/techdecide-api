@@ -30,6 +30,9 @@ public class JwtService {
             if (principal.getTeamRole() != null) {
                 extraClaims.put("teamRole", principal.getTeamRole());
             }
+            if (principal.getTeamId() != null) {
+                extraClaims.put("teamId", principal.getTeamId());
+            }
         }
         return buildToken(userDetails.getUsername(), extraClaims);
     }

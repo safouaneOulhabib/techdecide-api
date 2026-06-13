@@ -20,15 +20,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         return userRepository.findByEmail(email)
                 .map(user -> {
-                    String teamRole = teamMembershipRepository.findByUserId(user.getId())
-                            .map(TeamMembership::getTeamRole)
-                            .orElse(null);
+                    var membership = teamMembershipRepository.findByUserId(user.getId());
+                    String teamRole = membership.map(TeamMembership::getTeamRole).orElse(null);
+                    Long teamId = membership.map(m -> m.getTeam().getId()).orElse(null);
                     return new UserPrincipal(
                             user.getId(),
                             user.getEmail(),
                             user.getPassword(),
                             user.getAppRole(),
-                            teamRole
+                            teamRole,
+                            teamId
                     );
                 })
                 .orElseThrow(() -> new UsernameNotFoundException(

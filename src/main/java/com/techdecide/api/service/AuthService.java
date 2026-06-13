@@ -42,7 +42,7 @@ public class AuthService {
 
         UserPrincipal principal = new UserPrincipal(
                 savedUser.getId(), savedUser.getEmail(), savedUser.getPassword(),
-                savedUser.getAppRole(), null
+                savedUser.getAppRole(), null, null
         );
 
         String token = jwtService.generateToken(principal);
@@ -54,6 +54,7 @@ public class AuthService {
                 .name(savedUser.getName())
                 .appRole(savedUser.getAppRole())
                 .teamRole(null)
+                .teamId(null)
                 .build();
     }
 
@@ -68,13 +69,13 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String teamRole = teamMembershipRepository.findByUserId(user.getId())
-                .map(TeamMembership::getTeamRole)
-                .orElse(null);
+        var membership = teamMembershipRepository.findByUserId(user.getId());
+        String teamRole = membership.map(TeamMembership::getTeamRole).orElse(null);
+        Long teamId = membership.map(m -> m.getTeam().getId()).orElse(null);
 
         UserPrincipal principal = new UserPrincipal(
                 user.getId(), user.getEmail(), user.getPassword(),
-                user.getAppRole(), teamRole
+                user.getAppRole(), teamRole, teamId
         );
 
         String token = jwtService.generateToken(principal);
@@ -86,6 +87,7 @@ public class AuthService {
                 .name(user.getName())
                 .appRole(user.getAppRole())
                 .teamRole(teamRole)
+                .teamId(teamId)
                 .build();
     }
 }
