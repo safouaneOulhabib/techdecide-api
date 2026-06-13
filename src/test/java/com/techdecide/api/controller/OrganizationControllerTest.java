@@ -55,7 +55,7 @@ class OrganizationControllerTest {
     @Test
     @WithMockUser
     void create_validRequest_returns201() throws Exception {
-        when(organizationService.create(any())).thenReturn(buildDTO());
+        when(organizationService.create(any(), anyString())).thenReturn(buildDTO());
 
         mockMvc.perform(post("/api/organizations").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,13 +85,13 @@ class OrganizationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.name").exists());
 
-        verify(organizationService, never()).create(any());
+        verify(organizationService, never()).create(any(), any());
     }
 
     @Test
     @WithMockUser
     void create_duplicateName_returns409() throws Exception {
-        when(organizationService.create(any()))
+        when(organizationService.create(any(), anyString()))
                 .thenThrow(new ConflictException("Organization with name 'Acme' already exists"));
 
         mockMvc.perform(post("/api/organizations").with(csrf())

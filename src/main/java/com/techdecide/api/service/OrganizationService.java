@@ -4,9 +4,12 @@ import com.techdecide.api.dto.organization.CreateOrganizationRequest;
 import com.techdecide.api.dto.organization.OrganizationDTO;
 import com.techdecide.api.dto.organization.UpdateOrganizationRequest;
 import com.techdecide.api.entity.Organization;
+import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.OrganizationRepository;
+import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,8 +23,14 @@ import java.util.stream.Collectors;
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final UserRepository userRepository;
 
-    public OrganizationDTO create(CreateOrganizationRequest request) {
+    public OrganizationDTO create(CreateOrganizationRequest request, String actorEmail) {
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!"APP_ADMIN".equals(actor.getAppRole())) {
+            throw new ForbiddenException("Only APP_ADMIN can create organizations");
+        }
         if (organizationRepository.existsByName(request.getName())) {
             throw new ConflictException("Organization with name '" + request.getName() + "' already exists");
         }
