@@ -9,6 +9,7 @@ import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.CommentRepository;
 import com.techdecide.api.repository.DecisionRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final DecisionRepository decisionRepository;
     private final UserRepository userRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
 
     public CommentDTO create(Long decisionId, CreateCommentRequest request, String authorEmail) {
         Decision decision = decisionRepository.findById(decisionId)
@@ -32,6 +34,11 @@ public class CommentService {
 
         User author = userRepository.findByEmail(authorEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User", null));
+
+        if (!"APP_ADMIN".equals(author.getAppRole())) {
+            teamMembershipRepository.findByUserIdAndTeamId(author.getId(), decision.getTeam().getId())
+                    .orElseThrow(() -> new ForbiddenException("You must be a member of this team to comment"));
+        }
 
         Comment comment = Comment.builder()
                 .content(request.getContent())

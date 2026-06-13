@@ -4,9 +4,12 @@ import com.techdecide.api.dto.organization.CreateOrganizationRequest;
 import com.techdecide.api.dto.organization.OrganizationDTO;
 import com.techdecide.api.dto.organization.UpdateOrganizationRequest;
 import com.techdecide.api.entity.Organization;
+import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.OrganizationRepository;
+import com.techdecide.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,12 +29,23 @@ import static org.mockito.Mockito.*;
 class OrganizationServiceTest {
 
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private UserRepository userRepository;
     @InjectMocks private OrganizationService organizationService;
 
     private Organization buildOrg() {
         return Organization.builder()
                 .id(1L).name("Acme").description("Tech company")
                 .createdAt(LocalDateTime.now()).build();
+    }
+
+    private User buildAdmin() {
+        return User.builder().id(1L).name("Admin").email("admin@example.com")
+                .password("pw").appRole("APP_ADMIN").build();
+    }
+
+    private User buildRegularUser() {
+        return User.builder().id(2L).name("Alice").email("alice@example.com")
+                .password("pw").appRole("USER").build();
     }
 
     private CreateOrganizationRequest buildRequest(String name) {
@@ -46,10 +60,11 @@ class OrganizationServiceTest {
     @Test
     void create_validRequest_returnsOrganizationDTO() {
         CreateOrganizationRequest req = buildRequest("Acme");
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAdmin()));
         when(organizationRepository.existsByName("Acme")).thenReturn(false);
         when(organizationRepository.save(any())).thenReturn(buildOrg());
 
-        OrganizationDTO result = organizationService.create(req);
+        OrganizationDTO result = organizationService.create(req, "admin@example.com");
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Acme");
@@ -59,9 +74,10 @@ class OrganizationServiceTest {
     @Test
     void create_duplicateName_throwsConflictException() {
         CreateOrganizationRequest req = buildRequest("Acme");
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAdmin()));
         when(organizationRepository.existsByName("Acme")).thenReturn(true);
 
-        assertThrows(ConflictException.class, () -> organizationService.create(req));
+        assertThrows(ConflictException.class, () -> organizationService.create(req, "admin@example.com"));
         verify(organizationRepository, never()).save(any());
     }
 
@@ -69,13 +85,23 @@ class OrganizationServiceTest {
     void create_savesOrganizationWithCorrectFields() {
         CreateOrganizationRequest req = buildRequest("NewOrg");
         req.setDescription("Desc");
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAdmin()));
         when(organizationRepository.existsByName(any())).thenReturn(false);
         when(organizationRepository.save(any())).thenReturn(buildOrg());
 
-        organizationService.create(req);
+        organizationService.create(req, "admin@example.com");
 
         verify(organizationRepository).save(argThat(o ->
                 o.getName().equals("NewOrg") && o.getDescription().equals("Desc")));
+    }
+
+    @Test
+    void create_notAppAdmin_throwsForbiddenException() {
+        CreateOrganizationRequest req = buildRequest("Acme");
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildRegularUser()));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.create(req, "alice@example.com"));
+        verify(organizationRepository, never()).save(any());
     }
 
     // --- getAll ---

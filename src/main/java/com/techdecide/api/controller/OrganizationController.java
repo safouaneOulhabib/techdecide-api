@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,10 +23,11 @@ public class OrganizationController {
 
     @PostMapping
     public ResponseEntity<OrganizationDTO> create(
-            @Valid @RequestBody CreateOrganizationRequest request) {
+            @Valid @RequestBody CreateOrganizationRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(organizationService.create(request));
+                .body(organizationService.create(request, userDetails.getUsername()));
     }
 
     @GetMapping
