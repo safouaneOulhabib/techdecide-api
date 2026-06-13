@@ -13,6 +13,7 @@ import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.ReportRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final DecisionRepository decisionRepository;
     private final UserRepository userRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
     private final ObjectMapper objectMapper;
 
     public ReportDTO create(CreateReportRequest request, String authorEmail) {
@@ -42,6 +44,12 @@ public class ReportService {
 
         User author = userRepository.findByEmail(authorEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User", null));
+
+        if (!"APP_ADMIN".equals(author.getAppRole())) {
+            teamMembershipRepository.findByUserId(author.getId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "You must be assigned to a team to create reports"));
+        }
 
         List<ReportItem> items = new ArrayList<>();
         for (int i = 0; i < request.getDecisionIds().size(); i++) {
@@ -79,16 +87,58 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    public List<ReportSummaryDTO> getAll() {
+    public List<ReportSummaryDTO> getAll(String actorEmail) {
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if ("APP_ADMIN".equals(actor.getAppRole())) {
+            return reportRepository.findAll().stream()
+                    .map(this::mapToSummaryDTO)
+                    .collect(Collectors.toList());
+        }
+
+        Long actorTeamId = teamMembershipRepository.findByUserId(actor.getId())
+                .map(tm -> tm.getTeam().getId())
+                .orElse(null);
+
+        if (actorTeamId == null) {
+            return List.of();
+        }
+
+        List<Long> teamUserIds = teamMembershipRepository.findByTeamId(actorTeamId)
+                .stream()
+                .map(tm -> tm.getUser().getId())
+                .collect(Collectors.toList());
+
         return reportRepository.findAll().stream()
+                .filter(r -> teamUserIds.contains(r.getAuthor().getId()))
                 .map(this::mapToSummaryDTO)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public ReportDTO getById(Long id) {
+    public ReportDTO getById(Long id, String actorEmail) {
         Report report = reportRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Report", id));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!"APP_ADMIN".equals(actor.getAppRole())) {
+            Long actorTeamId = teamMembershipRepository.findByUserId(actor.getId())
+                    .map(tm -> tm.getTeam().getId())
+                    .orElse(null);
+            if (actorTeamId == null) {
+                throw new ForbiddenException("You must be assigned to a team to view reports");
+            }
+            Long authorTeamId = teamMembershipRepository.findByUserId(report.getAuthor().getId())
+                    .map(tm -> tm.getTeam().getId())
+                    .orElse(null);
+            if (!actorTeamId.equals(authorTeamId)) {
+                throw new ForbiddenException("You can only view reports from your team");
+            }
+        }
+
         return mapToDTO(report);
     }
 

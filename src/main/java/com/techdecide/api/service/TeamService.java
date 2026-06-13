@@ -5,10 +5,13 @@ import com.techdecide.api.dto.team.TeamDTO;
 import com.techdecide.api.dto.team.UpdateTeamRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.entity.Team;
+import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.OrganizationRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.TeamRepository;
+import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,8 @@ public class TeamService {
 
     private final TeamRepository teamRepository;
     private final OrganizationRepository organizationRepository;
+    private final UserRepository userRepository;
+    private final TeamMembershipRepository teamMembershipRepository;
 
     public TeamDTO create(CreateTeamRequest request) {
         Organization organization = organizationRepository.findById(request.getOrganizationId())
@@ -41,8 +46,26 @@ public class TeamService {
         return mapToDTO(saved);
     }
 
-    public List<TeamDTO> getAll() {
-        return teamRepository.findAll()
+    public List<TeamDTO> getAll(String actorEmail) {
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if ("APP_ADMIN".equals(actor.getAppRole())) {
+            return teamRepository.findAll()
+                    .stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+        }
+
+        Long teamId = teamMembershipRepository.findByUserId(actor.getId())
+                .map(tm -> tm.getTeam().getId())
+                .orElse(null);
+
+        if (teamId == null) {
+            return List.of();
+        }
+
+        return teamRepository.findById(teamId)
                 .stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());

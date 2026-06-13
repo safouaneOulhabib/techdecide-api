@@ -5,10 +5,14 @@ import com.techdecide.api.dto.team.TeamDTO;
 import com.techdecide.api.dto.team.UpdateTeamRequest;
 import com.techdecide.api.entity.Organization;
 import com.techdecide.api.entity.Team;
+import com.techdecide.api.entity.TeamMembership;
+import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.OrganizationRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.TeamRepository;
+import com.techdecide.api.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +33,8 @@ class TeamServiceTest {
 
     @Mock private TeamRepository teamRepository;
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private TeamMembershipRepository teamMembershipRepository;
     @InjectMocks private TeamService teamService;
 
     private Organization buildOrg() {
@@ -38,6 +44,16 @@ class TeamServiceTest {
     private Team buildTeam() {
         return Team.builder().id(1L).name("Engineering")
                 .organization(buildOrg()).createdAt(LocalDateTime.now()).build();
+    }
+
+    private User buildAppAdmin() {
+        return User.builder().id(99L).name("Admin").email("admin@example.com")
+                .password("pw").appRole("APP_ADMIN").build();
+    }
+
+    private User buildMember() {
+        return User.builder().id(1L).name("Alice").email("alice@example.com")
+                .password("pw").appRole("USER").build();
     }
 
     private CreateTeamRequest buildRequest() {
@@ -99,20 +115,42 @@ class TeamServiceTest {
     // --- getAll ---
 
     @Test
-    void getAll_returnsAllTeamsMapped() {
+    void getAll_appAdmin_returnsAllTeams() {
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
         when(teamRepository.findAll()).thenReturn(List.of(buildTeam()));
 
-        List<TeamDTO> result = teamService.getAll();
+        List<TeamDTO> result = teamService.getAll("admin@example.com");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getName()).isEqualTo("Engineering");
     }
 
     @Test
-    void getAll_emptyRepository_returnsEmptyList() {
-        when(teamRepository.findAll()).thenReturn(List.of());
+    void getAll_member_returnsOnlyOwnTeam() {
+        User alice = buildMember();
+        Team team = buildTeam();
+        TeamMembership membership = TeamMembership.builder()
+                .id(1L).user(alice).team(team).teamRole("MEMBER").build();
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(alice));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.of(membership));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
 
-        assertThat(teamService.getAll()).isEmpty();
+        List<TeamDTO> result = teamService.getAll("alice@example.com");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+        verify(teamRepository, never()).findAll();
+    }
+
+    @Test
+    void getAll_noTeam_returnsEmptyList() {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildMember()));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        List<TeamDTO> result = teamService.getAll("alice@example.com");
+
+        assertThat(result).isEmpty();
+        verify(teamRepository, never()).findAll();
     }
 
     // --- getByOrganization ---

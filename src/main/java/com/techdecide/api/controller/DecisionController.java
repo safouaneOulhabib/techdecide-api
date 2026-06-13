@@ -33,13 +33,16 @@ public class DecisionController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DecisionDTO>> getAll() {
-        return ResponseEntity.ok(decisionService.getAll());
+    public ResponseEntity<List<DecisionDTO>> getAll(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(decisionService.getAll(userDetails.getUsername()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DecisionDTO> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(decisionService.getById(id));
+    public ResponseEntity<DecisionDTO> getById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(decisionService.getById(id, userDetails.getUsername()));
     }
 
     @GetMapping("/team/{teamId}")
@@ -57,8 +60,9 @@ public class DecisionController {
     @PutMapping("/{id}")
     public ResponseEntity<DecisionDTO> update(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateDecisionRequest request) {
-        return ResponseEntity.ok(decisionService.update(id, request));
+            @Valid @RequestBody UpdateDecisionRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(decisionService.update(id, request, userDetails.getUsername()));
     }
 
     @PatchMapping("/{id}/status")
@@ -74,8 +78,10 @@ public class DecisionController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        decisionService.delete(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        decisionService.delete(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 }

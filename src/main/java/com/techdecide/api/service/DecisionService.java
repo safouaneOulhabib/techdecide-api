@@ -8,6 +8,7 @@ import com.techdecide.api.entity.Alternative;
 import com.techdecide.api.entity.Decision;
 import com.techdecide.api.entity.Tag;
 import com.techdecide.api.entity.Team;
+import com.techdecide.api.entity.TeamMembership;
 import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.BadRequestException;
 import com.techdecide.api.exception.ConflictException;
@@ -37,11 +38,20 @@ public class DecisionService {
     private final TeamMembershipRepository teamMembershipRepository;
 
     public DecisionDTO create(CreateDecisionRequest request, String authorEmail) {
-        User author = userRepository.findByEmail(authorEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", null));
+        User author = loadUser(authorEmail);
 
-        Team team = teamRepository.findById(request.getTeamId())
-                .orElseThrow(() -> new ResourceNotFoundException("Team", request.getTeamId()));
+        Long teamId;
+        if (isAppAdmin(author)) {
+            teamId = request.getTeamId();
+        } else {
+            TeamMembership membership = teamMembershipRepository.findByUserId(author.getId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "You must be assigned to a team to create decisions"));
+            teamId = membership.getTeam().getId();
+        }
+
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new ResourceNotFoundException("Team", teamId));
 
         List<Tag> tags = request.getTagIds() != null
                 ? tagRepository.findAllById(request.getTagIds())
@@ -74,16 +84,34 @@ public class DecisionService {
         return mapToDTO(saved);
     }
 
-    public List<DecisionDTO> getAll() {
-        return decisionRepository.findAll()
+    public List<DecisionDTO> getAll(String actorEmail) {
+        User actor = loadUser(actorEmail);
+        if (isAppAdmin(actor)) {
+            return decisionRepository.findAll()
+                    .stream()
+                    .map(this::mapToDTO)
+                    .collect(Collectors.toList());
+        }
+        Long teamId = getTeamId(actor);
+        if (teamId == null) {
+            return List.of();
+        }
+        return decisionRepository.findByTeamId(teamId)
                 .stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
-    public DecisionDTO getById(Long id) {
+    public DecisionDTO getById(Long id, String actorEmail) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
+        User actor = loadUser(actorEmail);
+        if (!isAppAdmin(actor)) {
+            Long actorTeamId = getTeamId(actor);
+            if (actorTeamId == null || !actorTeamId.equals(decision.getTeam().getId())) {
+                throw new ForbiddenException("You can only view decisions in your team");
+            }
+        }
         return mapToDTO(decision);
     }
 
@@ -101,12 +129,20 @@ public class DecisionService {
                 .collect(Collectors.toList());
     }
 
-    public DecisionDTO update(Long id, UpdateDecisionRequest request) {
+    public DecisionDTO update(Long id, UpdateDecisionRequest request, String actorEmail) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
 
         if (decision.getStatus() != Decision.Status.DRAFT && decision.getStatus() != Decision.Status.PROPOSED) {
             throw new BadRequestException("Cannot edit a decision in status: " + decision.getStatus());
+        }
+
+        User actor = loadUser(actorEmail);
+        if (!isAppAdmin(actor)) {
+            Long actorTeamId = getTeamId(actor);
+            if (actorTeamId == null || !actorTeamId.equals(decision.getTeam().getId())) {
+                throw new ForbiddenException("You can only edit decisions in your team");
+            }
         }
 
         if (request.getTitle() != null) decision.setTitle(request.getTitle());
@@ -144,10 +180,18 @@ public class DecisionService {
             throw new ConflictException("Cannot transition from " + decision.getStatus() + " to " + newStatus);
         }
 
-        if (newStatus == Decision.Status.APPROVED
-                || newStatus == Decision.Status.REJECTED
-                || newStatus == Decision.Status.SUPERSEDED) {
-            requireTeamAdminOrAppAdmin(actorEmail, decision.getTeam().getId());
+        User actor = loadUser(actorEmail);
+        if (!isAppAdmin(actor)) {
+            TeamMembership membership = teamMembershipRepository
+                    .findByUserIdAndTeamId(actor.getId(), decision.getTeam().getId())
+                    .orElseThrow(() -> new ForbiddenException(
+                            "You must be a member of this team to manage decisions"));
+
+            if ("MEMBER".equals(membership.getTeamRole())) {
+                if (decision.getStatus() != Decision.Status.DRAFT || newStatus != Decision.Status.PROPOSED) {
+                    throw new ForbiddenException("Members can only propose decisions (DRAFT → PROPOSED)");
+                }
+            }
         }
 
         if (newStatus == Decision.Status.SUPERSEDED) {
@@ -170,7 +214,7 @@ public class DecisionService {
         return mapToDTO(decisionRepository.save(decision));
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, String actorEmail) {
         Decision decision = decisionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Decision", id));
 
@@ -178,19 +222,30 @@ public class DecisionService {
             throw new BadRequestException("Cannot delete a decision in status: " + decision.getStatus());
         }
 
+        User actor = loadUser(actorEmail);
+        if (!isAppAdmin(actor)) {
+            Long actorTeamId = getTeamId(actor);
+            if (actorTeamId == null || !actorTeamId.equals(decision.getTeam().getId())) {
+                throw new ForbiddenException("You can only delete decisions in your team");
+            }
+        }
+
         decisionRepository.delete(decision);
     }
 
-    private void requireTeamAdminOrAppAdmin(String actorEmail, Long teamId) {
-        User actor = userRepository.findByEmail(actorEmail)
+    private User loadUser(String email) {
+        return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if ("APP_ADMIN".equals(actor.getAppRole())) {
-            return;
-        }
-        teamMembershipRepository.findByUserIdAndTeamId(actor.getId(), teamId)
-                .filter(m -> "TEAM_ADMIN".equals(m.getTeamRole()))
-                .orElseThrow(() -> new ForbiddenException(
-                        "Only TEAM_ADMIN or APP_ADMIN can approve, reject, or supersede decisions"));
+    }
+
+    private boolean isAppAdmin(User user) {
+        return "APP_ADMIN".equals(user.getAppRole());
+    }
+
+    private Long getTeamId(User user) {
+        return teamMembershipRepository.findByUserId(user.getId())
+                .map(tm -> tm.getTeam().getId())
+                .orElse(null);
     }
 
     private DecisionDTO mapToDTO(Decision decision) {

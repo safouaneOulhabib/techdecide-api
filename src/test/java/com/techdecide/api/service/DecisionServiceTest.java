@@ -49,16 +49,16 @@ class DecisionServiceTest {
                 .password("pw").appRole("APP_ADMIN").build();
     }
 
-    private void mockGovernanceAsAppAdmin() {
-        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
-    }
-
     private Organization buildOrg() {
         return Organization.builder().id(1L).name("Acme").build();
     }
 
     private Team buildTeam() {
         return Team.builder().id(1L).name("Engineering").organization(buildOrg()).build();
+    }
+
+    private Team buildTeam2() {
+        return Team.builder().id(2L).name("Design").organization(buildOrg()).build();
     }
 
     private Tag buildTag() {
@@ -76,6 +76,10 @@ class DecisionServiceTest {
                 .build();
     }
 
+    private TeamMembership buildMembership(User user, Team team, String role) {
+        return TeamMembership.builder().id(10L).user(user).team(team).teamRole(role).build();
+    }
+
     private CreateDecisionRequest buildCreateRequest() {
         CreateDecisionRequest req = new CreateDecisionRequest();
         req.setTitle("Use PostgreSQL");
@@ -86,6 +90,16 @@ class DecisionServiceTest {
         return req;
     }
 
+    private void mockAliceInTeam1(String role) {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), role)));
+    }
+
+    private void mockGovernanceAsAppAdmin() {
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
+    }
+
     // --- create ---
 
     @Test
@@ -93,6 +107,8 @@ class DecisionServiceTest {
         CreateDecisionRequest req = buildCreateRequest();
         Decision saved = buildDecision();
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(1L)).thenReturn(Optional.of(buildTeam()));
         when(decisionRepository.save(any())).thenReturn(saved);
 
@@ -116,9 +132,55 @@ class DecisionServiceTest {
     }
 
     @Test
+    void create_noTeam_throwsBadRequestException() {
+        CreateDecisionRequest req = buildCreateRequest();
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.create(req, "alice@example.com"));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void create_member_forcesOwnTeamIgnoringRequestTeamId() {
+        CreateDecisionRequest req = buildCreateRequest();
+        req.setTeamId(999L); // request says team 999, but actor is in team 1
+        Decision saved = buildDecision();
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(buildTeam())); // team 1 used, not 999
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        decisionService.create(req, "alice@example.com");
+
+        verify(teamRepository).findById(1L); // actor's team, not req.teamId
+        verify(teamRepository, never()).findById(999L);
+    }
+
+    @Test
+    void create_appAdmin_usesRequestTeamId() {
+        CreateDecisionRequest req = buildCreateRequest();
+        req.setTeamId(2L);
+        Decision saved = buildDecision();
+        saved.setTeam(buildTeam2());
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
+        when(teamRepository.findById(2L)).thenReturn(Optional.of(buildTeam2()));
+        when(decisionRepository.save(any())).thenReturn(saved);
+
+        decisionService.create(req, "admin@example.com");
+
+        verify(teamRepository).findById(2L);
+        verify(teamMembershipRepository, never()).findByUserId(any());
+    }
+
+    @Test
     void create_teamNotFound_throwsResourceNotFoundException() {
         CreateDecisionRequest req = buildCreateRequest();
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -133,6 +195,8 @@ class DecisionServiceTest {
         Decision saved = buildDecision();
         saved.setTags(List.of(buildTag()));
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(any())).thenReturn(Optional.of(buildTeam()));
         when(tagRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(buildTag()));
         when(decisionRepository.save(any())).thenReturn(saved);
@@ -147,6 +211,8 @@ class DecisionServiceTest {
         CreateDecisionRequest req = buildCreateRequest();
         req.setTagIds(null);
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(any())).thenReturn(Optional.of(buildTeam()));
         when(decisionRepository.save(any())).thenReturn(buildDecision());
 
@@ -169,6 +235,8 @@ class DecisionServiceTest {
         saved.setAlternatives(List.of(alternative));
 
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(any())).thenReturn(Optional.of(buildTeam()));
         when(decisionRepository.save(any())).thenReturn(saved);
 
@@ -183,6 +251,8 @@ class DecisionServiceTest {
         CreateDecisionRequest req = buildCreateRequest();
         req.setAlternatives(null);
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(teamRepository.findById(any())).thenReturn(Optional.of(buildTeam()));
         when(decisionRepository.save(any())).thenReturn(buildDecision());
 
@@ -194,14 +264,15 @@ class DecisionServiceTest {
     // --- getAll ---
 
     @Test
-    void getAll_multipleDecisions_returnsAllMapped() {
+    void getAll_appAdmin_returnsAllDecisions() {
         Decision d1 = buildDecision();
         Decision d2 = buildDecision();
         d2.setId(2L);
         d2.setTitle("Use Redis");
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findAll()).thenReturn(List.of(d1, d2));
 
-        List<DecisionDTO> result = decisionService.getAll();
+        List<DecisionDTO> result = decisionService.getAll("admin@example.com");
 
         assertThat(result).hasSize(2);
         assertThat(result).extracting(DecisionDTO::getTitle)
@@ -209,31 +280,81 @@ class DecisionServiceTest {
     }
 
     @Test
-    void getAll_emptyRepository_returnsEmptyList() {
-        when(decisionRepository.findAll()).thenReturn(List.of());
+    void getAll_member_returnsOnlyTeamDecisions() {
+        Decision d1 = buildDecision();
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findByTeamId(1L)).thenReturn(List.of(d1));
 
-        List<DecisionDTO> result = decisionService.getAll();
+        List<DecisionDTO> result = decisionService.getAll("alice@example.com");
+
+        assertThat(result).hasSize(1);
+        verify(decisionRepository, never()).findAll();
+    }
+
+    @Test
+    void getAll_noTeam_returnsEmptyList() {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        List<DecisionDTO> result = decisionService.getAll("alice@example.com");
 
         assertThat(result).isEmpty();
+        verify(decisionRepository, never()).findAll();
+        verify(decisionRepository, never()).findByTeamId(any());
     }
 
     // --- getById ---
 
     @Test
-    void getById_existingId_returnsDecisionDTO() {
+    void getById_appAdmin_allowsAnyTeam() {
+        mockGovernanceAsAppAdmin();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
 
-        DecisionDTO result = decisionService.getById(1L);
+        DecisionDTO result = decisionService.getById(1L, "admin@example.com");
 
         assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getTitle()).isEqualTo("Use PostgreSQL");
+    }
+
+    @Test
+    void getById_memberOwnTeam_returnsDecision() {
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+
+        assertThat(result.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void getById_memberWrongTeam_throwsForbiddenException() {
+        Decision decision = buildDecision(); // in team 1
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        // Alice is in team 2
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam2(), "MEMBER")));
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.getById(1L, "alice@example.com"));
+    }
+
+    @Test
+    void getById_noTeam_throwsForbiddenException() {
+        Decision decision = buildDecision();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.getById(1L, "alice@example.com"));
     }
 
     @Test
     void getById_nonExistingId_throwsResourceNotFoundException() {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> decisionService.getById(99L));
+        assertThrows(ResourceNotFoundException.class,
+                () -> decisionService.getById(99L, "alice@example.com"));
     }
 
     // --- getByTeam ---
@@ -289,10 +410,11 @@ class DecisionServiceTest {
         Decision updated = buildDecision();
         updated.setTitle("Updated Title");
 
+        mockAliceInTeam1("MEMBER");
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.save(any())).thenReturn(updated);
 
-        DecisionDTO result = decisionService.update(1L, req);
+        DecisionDTO result = decisionService.update(1L, req, "alice@example.com");
 
         assertThat(result.getTitle()).isEqualTo("Updated Title");
         verify(decisionRepository).save(existing);
@@ -303,7 +425,21 @@ class DecisionServiceTest {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> decisionService.update(99L, new UpdateDecisionRequest()));
+                () -> decisionService.update(99L, new UpdateDecisionRequest(), "alice@example.com"));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void update_wrongTeam_throwsForbiddenException() {
+        Decision existing = buildDecision(); // in team 1
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        // Alice is in team 2
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam2(), "MEMBER")));
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest(), "alice@example.com"));
         verify(decisionRepository, never()).save(any());
     }
 
@@ -312,11 +448,12 @@ class DecisionServiceTest {
         UpdateDecisionRequest req = new UpdateDecisionRequest();
         req.setTagIds(List.of(1L));
         Decision existing = buildDecision();
+        mockAliceInTeam1("MEMBER");
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(tagRepository.findAllById(List.of(1L))).thenReturn(List.of(buildTag()));
         when(decisionRepository.save(any())).thenReturn(existing);
 
-        decisionService.update(1L, req);
+        decisionService.update(1L, req, "alice@example.com");
 
         verify(tagRepository).findAllById(List.of(1L));
     }
@@ -330,28 +467,123 @@ class DecisionServiceTest {
 
         Decision existing = buildDecision();
         existing.setAlternatives(new ArrayList<>());
+        mockAliceInTeam1("MEMBER");
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(decisionRepository.save(any())).thenReturn(existing);
 
-        decisionService.update(1L, req);
+        decisionService.update(1L, req, "alice@example.com");
 
         assertThat(existing.getAlternatives()).hasSize(1);
         assertThat(existing.getAlternatives().get(0).getName()).isEqualTo("Option B");
     }
 
+    @Test
+    void update_approvedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.APPROVED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest(), "alice@example.com"));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void update_rejectedDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.REJECTED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest(), "alice@example.com"));
+        verify(decisionRepository, never()).save(any());
+    }
+
+    @Test
+    void update_supersededDecision_throwsBadRequestException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.SUPERSEDED);
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThrows(BadRequestException.class,
+                () -> decisionService.update(1L, new UpdateDecisionRequest(), "alice@example.com"));
+        verify(decisionRepository, never()).save(any());
+    }
+
     // --- updateStatus ---
 
     @Test
-    void updateStatus_validId_updatesStatus() {
+    void updateStatus_memberCanPropose() {
         Decision existing = buildDecision(); // DRAFT
         Decision updated = buildDecision();
         updated.setStatus(Decision.Status.PROPOSED);
+
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserIdAndTeamId(1L, 1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam(), "MEMBER")));
         when(decisionRepository.save(any())).thenReturn(updated);
 
         DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.PROPOSED, null, "alice@example.com");
 
         assertThat(result.getStatus()).isEqualTo(Decision.Status.PROPOSED);
+    }
+
+    @Test
+    void updateStatus_memberCannotApprove_throwsForbiddenException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        User member = buildUser();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
+        when(teamMembershipRepository.findByUserIdAndTeamId(member.getId(), existing.getTeam().getId()))
+                .thenReturn(Optional.of(buildMembership(member, buildTeam(), "MEMBER")));
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "alice@example.com"));
+    }
+
+    @Test
+    void updateStatus_memberCannotReject_throwsForbiddenException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        User member = buildUser();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
+        when(teamMembershipRepository.findByUserIdAndTeamId(member.getId(), existing.getTeam().getId()))
+                .thenReturn(Optional.of(buildMembership(member, buildTeam(), "MEMBER")));
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.REJECTED, null, "alice@example.com"));
+    }
+
+    @Test
+    void updateStatus_teamAdminWrongTeam_throwsForbiddenException() {
+        Decision existing = buildDecision(); // in team 1
+        existing.setStatus(Decision.Status.PROPOSED);
+        User lead = User.builder().id(5L).name("Lead").email("lead@example.com")
+                .password("pw").appRole("USER").build();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("lead@example.com")).thenReturn(Optional.of(lead));
+        // lead has no membership in team 1 (different team)
+        when(teamMembershipRepository.findByUserIdAndTeamId(5L, 1L)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "lead@example.com"));
+    }
+
+    @Test
+    void updateStatus_noTeam_throwsForbiddenException() {
+        Decision existing = buildDecision();
+        existing.setStatus(Decision.Status.PROPOSED);
+        User noTeamUser = User.builder().id(7L).name("Lone").email("lone@example.com")
+                .password("pw").appRole("USER").build();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("lone@example.com")).thenReturn(Optional.of(noTeamUser));
+        when(teamMembershipRepository.findByUserIdAndTeamId(7L, 1L)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "lone@example.com"));
     }
 
     @Test
@@ -492,20 +724,6 @@ class DecisionServiceTest {
     }
 
     @Test
-    void updateStatus_memberCannotApprove_throwsForbiddenException() {
-        Decision existing = buildDecision();
-        existing.setStatus(Decision.Status.PROPOSED);
-        User member = buildUser();
-        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
-        when(teamMembershipRepository.findByUserIdAndTeamId(member.getId(), existing.getTeam().getId()))
-                .thenReturn(Optional.empty());
-
-        assertThrows(com.techdecide.api.exception.ForbiddenException.class,
-                () -> decisionService.updateStatus(1L, Decision.Status.APPROVED, null, "alice@example.com"));
-    }
-
-    @Test
     void updateStatus_teamAdminCanApproveInOwnTeam() {
         Team team = buildTeam();
         Decision existing = buildDecision();
@@ -543,47 +761,15 @@ class DecisionServiceTest {
         assertThat(result.getStatus()).isEqualTo(Decision.Status.APPROVED);
     }
 
-    @Test
-    void update_approvedDecision_throwsBadRequestException() {
-        Decision existing = buildDecision();
-        existing.setStatus(Decision.Status.APPROVED);
-        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
-
-        assertThrows(BadRequestException.class,
-                () -> decisionService.update(1L, new UpdateDecisionRequest()));
-        verify(decisionRepository, never()).save(any());
-    }
-
-    @Test
-    void update_rejectedDecision_throwsBadRequestException() {
-        Decision existing = buildDecision();
-        existing.setStatus(Decision.Status.REJECTED);
-        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
-
-        assertThrows(BadRequestException.class,
-                () -> decisionService.update(1L, new UpdateDecisionRequest()));
-        verify(decisionRepository, never()).save(any());
-    }
-
-    @Test
-    void update_supersededDecision_throwsBadRequestException() {
-        Decision existing = buildDecision();
-        existing.setStatus(Decision.Status.SUPERSEDED);
-        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
-
-        assertThrows(BadRequestException.class,
-                () -> decisionService.update(1L, new UpdateDecisionRequest()));
-        verify(decisionRepository, never()).save(any());
-    }
-
     // --- delete ---
 
     @Test
     void delete_existingId_callsRepositoryDelete() {
         Decision existing = buildDecision();
+        mockAliceInTeam1("MEMBER");
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
-        decisionService.delete(1L);
+        decisionService.delete(1L, "alice@example.com");
 
         verify(decisionRepository).delete(existing);
     }
@@ -592,7 +778,22 @@ class DecisionServiceTest {
     void delete_nonExistingId_throwsResourceNotFoundException() {
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> decisionService.delete(99L));
+        assertThrows(ResourceNotFoundException.class,
+                () -> decisionService.delete(99L, "alice@example.com"));
+        verify(decisionRepository, never()).delete(any());
+    }
+
+    @Test
+    void delete_wrongTeam_throwsForbiddenException() {
+        Decision existing = buildDecision(); // in team 1
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        // Alice is in team 2
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam2(), "MEMBER")));
+
+        assertThrows(ForbiddenException.class,
+                () -> decisionService.delete(1L, "alice@example.com"));
         verify(decisionRepository, never()).delete(any());
     }
 
@@ -602,7 +803,8 @@ class DecisionServiceTest {
         existing.setStatus(Decision.Status.APPROVED);
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
-        assertThrows(BadRequestException.class, () -> decisionService.delete(1L));
+        assertThrows(BadRequestException.class,
+                () -> decisionService.delete(1L, "alice@example.com"));
         verify(decisionRepository, never()).delete(any());
     }
 
@@ -612,7 +814,8 @@ class DecisionServiceTest {
         existing.setStatus(Decision.Status.SUPERSEDED);
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(existing));
 
-        assertThrows(BadRequestException.class, () -> decisionService.delete(1L));
+        assertThrows(BadRequestException.class,
+                () -> decisionService.delete(1L, "alice@example.com"));
         verify(decisionRepository, never()).delete(any());
     }
 }
