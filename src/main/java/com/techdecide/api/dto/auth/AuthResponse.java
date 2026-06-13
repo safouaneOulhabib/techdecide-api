@@ -17,4 +17,5 @@ public class AuthResponse {
     private String name;
     private String appRole;
     private String teamRole;
+    private Long teamId;
 }

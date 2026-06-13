@@ -16,13 +16,15 @@ public class UserPrincipal implements UserDetails {
     private final String password;
     private final String appRole;
     private final String teamRole;
+    private final Long teamId;
 
-    public UserPrincipal(Long id, String email, String password, String appRole, String teamRole) {
+    public UserPrincipal(Long id, String email, String password, String appRole, String teamRole, Long teamId) {
         this.id = id;
         this.email = email;
         this.password = password;
         this.appRole = appRole;
         this.teamRole = teamRole;
+        this.teamId = teamId;
     }
 
     @Override
