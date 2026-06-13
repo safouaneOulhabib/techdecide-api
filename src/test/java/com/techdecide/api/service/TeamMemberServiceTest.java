@@ -113,9 +113,26 @@ class TeamMemberServiceTest {
     }
 
     @Test
-    void getMembers_asMember_throwsForbidden() {
+    void getMembers_asMemberOfTeam_returnsList() {
         User member = buildMember();
         Team team = buildTeam();
+        TeamMembership membership = buildMemberMembership(member, team);
+
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
+        when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.of(membership));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByTeamId(1L)).thenReturn(List.of(membership));
+
+        List<TeamMemberDTO> result = teamMemberService.getMembers(1L, "alice@example.com");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Alice");
+        assertThat(result.get(0).getTeamRole()).isEqualTo("MEMBER");
+    }
+
+    @Test
+    void getMembers_asMember_notInTeam_throwsForbidden() {
+        User member = buildMember();
 
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(member));
         when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.empty());

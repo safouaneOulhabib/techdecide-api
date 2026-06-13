@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,8 +30,9 @@ public class TeamController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TeamDTO>> getAll() {
-        return ResponseEntity.ok(teamService.getAll());
+    public ResponseEntity<List<TeamDTO>> getAll(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(teamService.getAll(userDetails.getUsername()));
     }
 
     @GetMapping("/organization/{organizationId}")

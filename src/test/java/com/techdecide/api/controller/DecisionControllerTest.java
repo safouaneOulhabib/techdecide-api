@@ -127,7 +127,7 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void getAll_authenticated_returns200WithList() throws Exception {
-        when(decisionService.getAll()).thenReturn(List.of(buildDTO()));
+        when(decisionService.getAll(anyString())).thenReturn(List.of(buildDTO()));
 
         mockMvc.perform(get("/api/decisions"))
                 .andExpect(status().isOk())
@@ -143,7 +143,7 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void getAll_emptyList_returns200WithEmptyArray() throws Exception {
-        when(decisionService.getAll()).thenReturn(List.of());
+        when(decisionService.getAll(anyString())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/decisions"))
                 .andExpect(status().isOk())
@@ -155,7 +155,7 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void getById_existingId_returns200() throws Exception {
-        when(decisionService.getById(1L)).thenReturn(buildDTO());
+        when(decisionService.getById(eq(1L), anyString())).thenReturn(buildDTO());
 
         mockMvc.perform(get("/api/decisions/1"))
                 .andExpect(status().isOk())
@@ -165,7 +165,7 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void getById_nonExistingId_returns404() throws Exception {
-        when(decisionService.getById(99L))
+        when(decisionService.getById(eq(99L), anyString()))
                 .thenThrow(new ResourceNotFoundException("Decision", 99L));
 
         mockMvc.perform(get("/api/decisions/99"))
@@ -206,7 +206,7 @@ class DecisionControllerTest {
         req.setTitle("Updated Title");
         DecisionDTO updated = buildDTO();
         updated.setTitle("Updated Title");
-        when(decisionService.update(eq(1L), any())).thenReturn(updated);
+        when(decisionService.update(eq(1L), any(), anyString())).thenReturn(updated);
 
         mockMvc.perform(put("/api/decisions/1").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -218,7 +218,7 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void update_notFound_returns404() throws Exception {
-        when(decisionService.update(eq(99L), any()))
+        when(decisionService.update(eq(99L), any(), anyString()))
                 .thenThrow(new ResourceNotFoundException("Decision", 99L));
 
         mockMvc.perform(put("/api/decisions/99").with(csrf())
@@ -256,18 +256,18 @@ class DecisionControllerTest {
     @Test
     @WithMockUser
     void delete_existingId_returns204() throws Exception {
-        doNothing().when(decisionService).delete(1L);
+        doNothing().when(decisionService).delete(eq(1L), anyString());
 
         mockMvc.perform(delete("/api/decisions/1").with(csrf()))
                 .andExpect(status().isNoContent());
 
-        verify(decisionService).delete(1L);
+        verify(decisionService).delete(eq(1L), anyString());
     }
 
     @Test
     @WithMockUser
     void delete_notFound_returns404() throws Exception {
-        doThrow(new ResourceNotFoundException("Decision", 99L)).when(decisionService).delete(99L);
+        doThrow(new ResourceNotFoundException("Decision", 99L)).when(decisionService).delete(eq(99L), anyString());
 
         mockMvc.perform(delete("/api/decisions/99").with(csrf()))
                 .andExpect(status().isNotFound());

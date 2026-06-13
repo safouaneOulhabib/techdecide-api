@@ -114,7 +114,7 @@ class ReportControllerTest {
     @Test
     @WithMockUser
     void getAll_authenticated_returns200WithList() throws Exception {
-        when(reportService.getAll()).thenReturn(List.of(buildSummaryDTO()));
+        when(reportService.getAll(anyString())).thenReturn(List.of(buildSummaryDTO()));
 
         mockMvc.perform(get("/api/reports"))
                 .andExpect(status().isOk())
@@ -134,7 +134,7 @@ class ReportControllerTest {
     @Test
     @WithMockUser
     void getById_existingId_returns200WithFullDTO() throws Exception {
-        when(reportService.getById(1L)).thenReturn(buildReportDTO());
+        when(reportService.getById(eq(1L), anyString())).thenReturn(buildReportDTO());
 
         mockMvc.perform(get("/api/reports/1"))
                 .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class ReportControllerTest {
     @Test
     @WithMockUser
     void getById_notFound_returns404() throws Exception {
-        when(reportService.getById(99L))
+        when(reportService.getById(eq(99L), anyString()))
                 .thenThrow(new ResourceNotFoundException("Report", 99L));
 
         mockMvc.perform(get("/api/reports/99"))

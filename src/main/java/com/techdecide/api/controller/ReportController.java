@@ -29,13 +29,16 @@ public class ReportController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ReportSummaryDTO>> getAll() {
-        return ResponseEntity.ok(reportService.getAll());
+    public ResponseEntity<List<ReportSummaryDTO>> getAll(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(reportService.getAll(userDetails.getUsername()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ReportDTO> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(reportService.getById(id));
+    public ResponseEntity<ReportDTO> getById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(reportService.getById(id, userDetails.getUsername()));
     }
 
     @PutMapping("/{id}")

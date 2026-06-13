@@ -11,6 +11,7 @@ import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
 import com.techdecide.api.repository.ReportRepository;
+import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,14 +38,17 @@ class ReportServiceTest {
     @Mock private ReportRepository reportRepository;
     @Mock private DecisionRepository decisionRepository;
     @Mock private UserRepository userRepository;
+    @Mock private TeamMembershipRepository teamMembershipRepository;
     @Spy  private ObjectMapper objectMapper;
 
     @InjectMocks private ReportService reportService;
 
     private User author;
     private User otherUser;
+    private User appAdmin;
     private Team team;
     private Organization org;
+    private TeamMembership authorMembership;
 
     @BeforeEach
     void setUp() {
@@ -54,6 +58,10 @@ class ReportServiceTest {
                 .password("pw").appRole("USER").build();
         otherUser = User.builder().id(2L).name("Bob").email("bob@example.com")
                 .password("pw").appRole("USER").build();
+        appAdmin = User.builder().id(99L).name("Admin").email("admin@example.com")
+                .password("pw").appRole("APP_ADMIN").build();
+        authorMembership = TeamMembership.builder()
+                .id(1L).user(author).team(team).teamRole("MEMBER").build();
     }
 
     private Decision buildDecision(Long id, String title, Decision.Status status) {
@@ -112,6 +120,11 @@ class ReportServiceTest {
         return req;
     }
 
+    private void mockAliceWithMembership() {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.of(authorMembership));
+    }
+
     // --- create: status mix ---
 
     @Test
@@ -122,7 +135,7 @@ class ReportServiceTest {
         Decision rejected = buildDecision(4L, "Rejected Decision", Decision.Status.REJECTED);
         Decision superseded = buildDecision(5L, "Superseded Decision", Decision.Status.SUPERSEDED);
 
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(draft));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(proposed));
         when(decisionRepository.findById(3L)).thenReturn(Optional.of(approved));
@@ -162,11 +175,42 @@ class ReportServiceTest {
         verify(reportRepository, never()).save(any());
     }
 
+    // --- create: no team ---
+
+    @Test
+    void create_noTeam_throwsBadRequest() {
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class,
+                () -> reportService.create(buildCreateRequest(List.of(1L)), "alice@example.com"));
+        verify(reportRepository, never()).save(any());
+    }
+
+    @Test
+    void create_appAdmin_noTeamCheck() {
+        Decision decision = buildDecision(1L, "Some Decision", Decision.Status.APPROVED);
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(appAdmin));
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
+
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        when(reportRepository.save(captor.capture())).thenAnswer(inv -> {
+            Report r = captor.getValue();
+            r.setId(1L);
+            r.setCreatedAt(LocalDateTime.now());
+            return r;
+        });
+
+        reportService.create(buildCreateRequest(List.of(1L)), "admin@example.com");
+
+        verify(teamMembershipRepository, never()).findByUserId(any());
+    }
+
     // --- create: non-existent decision ---
 
     @Test
     void create_nonExistentDecisionId_throwsResourceNotFound() {
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
@@ -183,7 +227,7 @@ class ReportServiceTest {
         Alternative alt2 = Alternative.builder().id(2L).name("MongoDB").rejectionReason("NoSQL not suitable").build();
         decision.setAlternatives(List.of(alt1, alt2));
 
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
 
         ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
@@ -204,7 +248,6 @@ class ReportServiceTest {
         assertThat(alts.get(1).getName()).isEqualTo("MongoDB");
         assertThat(alts.get(1).getRejectionReason()).isEqualTo("NoSQL not suitable");
 
-        // Verify the raw JSON was stored
         String storedJson = captor.getValue().getItems().get(0).getAlternativesJson();
         assertThat(storedJson).contains("MySQL").contains("MongoDB");
     }
@@ -255,7 +298,6 @@ class ReportServiceTest {
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
         when(reportRepository.saveAndFlush(any())).thenAnswer(inv -> {
             Report r = inv.getArgument(0);
-            // Simulate @PreUpdate that JPA fires on saveAndFlush
             r.setUpdatedAt(LocalDateTime.now());
             return r;
         });
@@ -263,13 +305,12 @@ class ReportServiceTest {
         ReportDTO result = reportService.update(1L, req, "alice@example.com");
 
         verify(reportRepository).saveAndFlush(report);
-        // The response DTO must reflect updatedAt, not null — this was the bug
         assertThat(result.getUpdatedAt()).isNotNull();
     }
 
     @Test
     void update_withSameValues_doesNotSaveAndUpdatedAtRemainsNull() {
-        Report report = buildReport(1L, List.of()); // title="My Report", introduction="Intro text"
+        Report report = buildReport(1L, List.of());
 
         UpdateReportRequest req = new UpdateReportRequest();
         req.setTitle("My Report");
@@ -287,7 +328,6 @@ class ReportServiceTest {
     void update_withNullFields_doesNotSaveAndUpdatedAtRemainsNull() {
         Report report = buildReport(1L, List.of());
 
-        // PUT body with no fields set — nothing to change
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
 
         ReportDTO result = reportService.update(1L, new UpdateReportRequest(), "alice@example.com");
@@ -318,13 +358,86 @@ class ReportServiceTest {
         verify(reportRepository, never()).delete(any());
     }
 
+    // --- getById ---
+
+    @Test
+    void getById_appAdmin_allowsAnyReport() {
+        ReportItem item = buildItem(1L, 10L, "Deleted Decision", "DRAFT", 0);
+        Report report = buildReport(1L, List.of(item));
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(appAdmin));
+
+        ReportDTO result = reportService.getById(1L, "admin@example.com");
+
+        assertThat(result.getAuthorId()).isEqualTo(1L);
+        assertThat(result.getItems()).hasSize(1);
+    }
+
+    @Test
+    void getById_memberSameTeam_returnsReport() {
+        ReportItem item = buildItem(1L, 10L, "Some Decision", "APPROVED", 0);
+        Report report = buildReport(1L, List.of(item));
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        // actor (alice) in team 1
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.of(authorMembership));
+
+        ReportDTO result = reportService.getById(1L, "alice@example.com");
+
+        assertThat(result.getItems()).hasSize(1);
+        assertThat(result.getItems().get(0).getDecisionTitle()).isEqualTo("Some Decision");
+    }
+
+    @Test
+    void getById_noTeam_throwsForbidden() {
+        Report report = buildReport(1L, List.of());
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class,
+                () -> reportService.getById(1L, "alice@example.com"));
+    }
+
+    @Test
+    void getById_differentTeam_throwsForbidden() {
+        Organization org2 = Organization.builder().id(2L).name("Other").build();
+        Team team2 = Team.builder().id(2L).name("Design").organization(org2).build();
+        User bob = User.builder().id(2L).name("Bob").email("bob@example.com")
+                .password("pw").appRole("USER").build();
+        TeamMembership bobMembership = TeamMembership.builder()
+                .id(2L).user(bob).team(team2).teamRole("MEMBER").build();
+
+        Report report = buildReport(1L, List.of()); // authored by alice (team 1)
+
+        when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(bob));
+        // bob (actor) is in team 2
+        when(teamMembershipRepository.findByUserId(2L)).thenReturn(Optional.of(bobMembership));
+        // alice (author) is in team 1
+        when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.of(authorMembership));
+
+        assertThrows(ForbiddenException.class,
+                () -> reportService.getById(1L, "bob@example.com"));
+    }
+
+    @Test
+    void getById_notFound_throws404() {
+        when(reportRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> reportService.getById(99L, "alice@example.com"));
+    }
+
     // --- snapshot independence: edit original decision ---
 
     @Test
     void snapshotIndependence_editOriginalDecision_reportSnapshotUnchanged() {
         Decision decision = buildDecision(1L, "Original Title", Decision.Status.APPROVED);
 
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
 
         ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
@@ -339,11 +452,9 @@ class ReportServiceTest {
         assertThat(created.getItems().get(0).getDecisionTitle()).isEqualTo("Original Title");
         assertThat(created.getItems().get(0).getDecisionStatus()).isEqualTo("APPROVED");
 
-        // Simulate editing the original decision after report creation
         decision.setTitle("Updated Title After Report");
         decision.setStatus(Decision.Status.SUPERSEDED);
 
-        // The saved report snapshot still holds the original values
         Report savedReport = captor.getValue();
         assertThat(savedReport.getItems().get(0).getDecisionTitle()).isEqualTo("Original Title");
         assertThat(savedReport.getItems().get(0).getDecisionStatus()).isEqualTo("APPROVED");
@@ -356,10 +467,10 @@ class ReportServiceTest {
         ReportItem item = buildItem(1L, 10L, "Deleted Decision", "DRAFT", 0);
         Report report = buildReport(1L, List.of(item));
 
-        // Report loads fine even though the original decision (id=10) no longer exists
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(appAdmin));
 
-        ReportDTO result = reportService.getById(1L);
+        ReportDTO result = reportService.getById(1L, "admin@example.com");
 
         assertThat(result.getAuthorId()).isEqualTo(1L);
         assertThat(result.getAuthorName()).isEqualTo("Alice");
@@ -377,7 +488,7 @@ class ReportServiceTest {
         Decision d2 = buildDecision(2L, "Second", Decision.Status.APPROVED);
         Decision d3 = buildDecision(3L, "Third", Decision.Status.REJECTED);
 
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(d1));
         when(decisionRepository.findById(2L)).thenReturn(Optional.of(d2));
         when(decisionRepository.findById(3L)).thenReturn(Optional.of(d3));
@@ -410,9 +521,9 @@ class ReportServiceTest {
         Report report = buildReport(1L, List.of(item));
 
         when(reportRepository.findById(1L)).thenReturn(Optional.of(report));
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(appAdmin));
 
-        // Must not throw — bad JSON falls back to empty alternatives list
-        ReportDTO result = reportService.getById(1L);
+        ReportDTO result = reportService.getById(1L, "admin@example.com");
 
         assertThat(result.getItems()).hasSize(1);
         assertThat(result.getItems().get(0).getAlternatives()).isEmpty();
@@ -423,9 +534,8 @@ class ReportServiceTest {
     @Test
     void create_decisionWithNoAlternatives_alternativesJsonIsEmptyArrayAndDTOAlternativesIsEmptyList() {
         Decision decision = buildDecision(1L, "No-Alt Decision", Decision.Status.DRAFT);
-        // alternatives already empty from buildDecision
 
-        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(author));
+        mockAliceWithMembership();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(decision));
 
         ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
@@ -438,11 +548,9 @@ class ReportServiceTest {
 
         ReportDTO result = reportService.create(buildCreateRequest(List.of(1L)), "alice@example.com");
 
-        // Raw column value must be "[]", not null
         String storedJson = captor.getValue().getItems().get(0).getAlternativesJson();
         assertThat(storedJson).isEqualTo("[]");
 
-        // DTO alternatives must be an empty list, not null
         assertThat(result.getItems()).hasSize(1);
         assertThat(result.getItems().get(0).getAlternatives()).isNotNull().isEmpty();
     }

@@ -119,7 +119,7 @@ class TeamControllerTest {
     @Test
     @WithMockUser
     void getAll_returns200WithList() throws Exception {
-        when(teamService.getAll()).thenReturn(List.of(buildDTO()));
+        when(teamService.getAll(anyString())).thenReturn(List.of(buildDTO()));
 
         mockMvc.perform(get("/api/teams"))
                 .andExpect(status().isOk())

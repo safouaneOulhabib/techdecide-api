@@ -47,7 +47,7 @@ public class TeamMemberService {
     @Transactional(readOnly = true)
     public List<TeamMemberDTO> getMembers(Long teamId, String currentUserEmail) {
         User currentUser = resolveUser(currentUserEmail);
-        requireAdminOrTeamAdmin(currentUser, teamId);
+        requireMemberOfTeamOrAppAdmin(currentUser, teamId);
         requireTeamExists(teamId);
         return teamMembershipRepository.findByTeamId(teamId)
                 .stream()
@@ -124,6 +124,14 @@ public class TeamMemberService {
         teamMembershipRepository.findByUserIdAndTeamId(user.getId(), teamId)
                 .filter(m -> "TEAM_ADMIN".equals(m.getTeamRole()))
                 .orElseThrow(() -> new ForbiddenException("Only APP_ADMIN or TEAM_ADMIN can manage team members"));
+    }
+
+    private void requireMemberOfTeamOrAppAdmin(User user, Long teamId) {
+        if ("APP_ADMIN".equals(user.getAppRole())) {
+            return;
+        }
+        teamMembershipRepository.findByUserIdAndTeamId(user.getId(), teamId)
+                .orElseThrow(() -> new ForbiddenException("Only team members or APP_ADMIN can view team members"));
     }
 
     private String parseTeamRole(String role) {
