@@ -20,6 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import com.techdecide.api.exception.ForbiddenException;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -51,8 +53,8 @@ class TagControllerTest {
 
     @Test
     @WithMockUser
-    void create_validRequest_returns201() throws Exception {
-        when(tagService.create(any())).thenReturn(buildDTO());
+    void create_appAdmin_returns201() throws Exception {
+        when(tagService.create(any(), anyString())).thenReturn(buildDTO());
 
         mockMvc.perform(post("/api/tags").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -61,6 +63,18 @@ class TagControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("backend"))
                 .andExpect(jsonPath("$.color").value("#ff0000"));
+    }
+
+    @Test
+    @WithMockUser
+    void create_nonAppAdmin_returns403() throws Exception {
+        when(tagService.create(any(), anyString()))
+                .thenThrow(new ForbiddenException("Only APP_ADMIN can manage tags"));
+
+        mockMvc.perform(post("/api/tags").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(buildRequest())))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -83,7 +97,7 @@ class TagControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.name").exists());
 
-        verify(tagService, never()).create(any());
+        verify(tagService, never()).create(any(), any());
     }
 
     @Test
@@ -101,7 +115,7 @@ class TagControllerTest {
     @Test
     @WithMockUser
     void create_duplicateName_returns409() throws Exception {
-        when(tagService.create(any()))
+        when(tagService.create(any(), anyString()))
                 .thenThrow(new ConflictException("Tag with name 'backend' already exists"));
 
         mockMvc.perform(post("/api/tags").with(csrf())
@@ -165,19 +179,29 @@ class TagControllerTest {
 
     @Test
     @WithMockUser
-    void delete_existingId_returns204() throws Exception {
-        doNothing().when(tagService).delete(1L);
+    void delete_appAdmin_returns204() throws Exception {
+        doNothing().when(tagService).delete(eq(1L), anyString());
 
         mockMvc.perform(delete("/api/tags/1").with(csrf()))
                 .andExpect(status().isNoContent());
 
-        verify(tagService).delete(1L);
+        verify(tagService).delete(eq(1L), anyString());
+    }
+
+    @Test
+    @WithMockUser
+    void delete_nonAppAdmin_returns403() throws Exception {
+        doThrow(new ForbiddenException("Only APP_ADMIN can manage tags"))
+                .when(tagService).delete(eq(1L), anyString());
+
+        mockMvc.perform(delete("/api/tags/1").with(csrf()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser
     void delete_notFound_returns404() throws Exception {
-        doThrow(new ResourceNotFoundException("Tag", 99L)).when(tagService).delete(99L);
+        doThrow(new ResourceNotFoundException("Tag", 99L)).when(tagService).delete(eq(99L), anyString());
 
         mockMvc.perform(delete("/api/tags/99").with(csrf()))
                 .andExpect(status().isNotFound());
