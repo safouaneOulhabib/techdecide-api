@@ -19,6 +19,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -139,6 +140,24 @@ class TeamMemberServiceTest {
 
         assertThrows(ForbiddenException.class,
                 () -> teamMemberService.getMembers(1L, "alice@example.com"));
+    }
+
+    @Test
+    void getMembers_createdAtIsMappedToDTO() {
+        User admin = buildAppAdmin();
+        User member = buildMember();
+        Team team = buildTeam();
+        LocalDateTime joinedAt = LocalDateTime.of(2024, 6, 1, 10, 0);
+        TeamMembership membership = TeamMembership.builder()
+                .id(11L).user(member).team(team).teamRole("MEMBER").createdAt(joinedAt).build();
+
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+        when(teamRepository.findById(1L)).thenReturn(Optional.of(team));
+        when(teamMembershipRepository.findByTeamId(1L)).thenReturn(List.of(membership));
+
+        List<TeamMemberDTO> result = teamMemberService.getMembers(1L, "admin@example.com");
+
+        assertThat(result.get(0).getCreatedAt()).isEqualTo(joinedAt);
     }
 
     @Test

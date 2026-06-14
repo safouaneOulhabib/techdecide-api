@@ -148,6 +148,7 @@ public class TeamMemberService {
                 .email(membership.getUser().getEmail())
                 .teamRole(membership.getTeamRole())
                 .teamId(membership.getTeam().getId())
+                .createdAt(membership.getCreatedAt())
                 .build();
     }
 }
