@@ -32,6 +32,9 @@ public class DecisionDTO {
     private LocalDateTime updatedAt;
     private boolean canVote;
     private boolean canGovern;
+    private boolean canPropose;
+    private boolean canEdit;
+    private boolean canDelete;
 
     @Data
     @Builder

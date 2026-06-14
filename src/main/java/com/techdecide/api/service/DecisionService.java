@@ -320,14 +320,30 @@ public class DecisionService {
 
         boolean canVote = false;
         boolean canGovern = false;
+        boolean canPropose = false;
+        boolean canEdit = false;
+        boolean canDelete = false;
 
         if (actor != null) {
             if (isAppAdmin(actor)) {
                 canVote = true;
                 canGovern = true;
+                canPropose = true;
+                canEdit = decision.getStatus() == Decision.Status.DRAFT
+                        || decision.getStatus() == Decision.Status.PROPOSED;
+                canDelete = decision.getStatus() == Decision.Status.DRAFT
+                        || decision.getStatus() == Decision.Status.PROPOSED
+                        || decision.getStatus() == Decision.Status.REJECTED;
             } else {
-                canVote = isActorOnInvolvedTeam(actor, decision.getId());
+                boolean onInvolvedTeam = isActorOnInvolvedTeam(actor, decision.getId());
+                canVote = onInvolvedTeam;
+                canPropose = onInvolvedTeam;
                 canGovern = isActorTeamAdminOfInvolvedTeam(actor, decision.getId());
+                canEdit = onInvolvedTeam && (decision.getStatus() == Decision.Status.DRAFT
+                        || decision.getStatus() == Decision.Status.PROPOSED);
+                canDelete = onInvolvedTeam && (decision.getStatus() == Decision.Status.DRAFT
+                        || decision.getStatus() == Decision.Status.PROPOSED
+                        || decision.getStatus() == Decision.Status.REJECTED);
             }
         }
 
@@ -369,6 +385,9 @@ public class DecisionService {
                 .updatedAt(decision.getUpdatedAt())
                 .canVote(canVote)
                 .canGovern(canGovern)
+                .canPropose(canPropose)
+                .canEdit(canEdit)
+                .canDelete(canDelete)
                 .build();
     }
 }

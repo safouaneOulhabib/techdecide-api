@@ -82,6 +82,21 @@ extract_id() {
   echo "$1" | grep -o '"id":[0-9]*' | head -1 | grep -o '[0-9]*$'
 }
 
+# assert_field DESCRIPTION FIELD EXPECTED_VALUE RESPONSE_JSON
+# Checks that a JSON boolean field equals the expected value in the response body.
+assert_field() {
+  local description="$1" field="$2" expected="$3" body="$4"
+  local actual
+  actual=$(echo "$body" | grep -o "\"${field}\":${expected}" | head -1)
+  if [ -n "$actual" ]; then
+    echo "  ✅ PASS: $description (${field}=${expected})"
+    PASS=$((PASS + 1))
+  else
+    echo "  ❌ FAIL: $description (expected ${field}=${expected} not found in response)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+
 # ── Sanity check ──────────────────────────────────────────────────────────────
 
 PING=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -202,6 +217,19 @@ if [ -n "$D1_ID" ]; then
   assert "GET /decisions/$D1_ID as APP_ADMIN — 200" "200" "$STATUS"
 fi
 
+# Permission flags on D1 (DRAFT, teamIds=[1] = Backend team only)
+if [ -n "$D1_ID" ]; then
+  req GET "$TOKEN_M1" "$BASE_URL/decisions/$D1_ID"
+  assert_field "GET D1 as MEMBER1 (involved, DRAFT) — canPropose=true" "canPropose" "true" "$RESPONSE"
+  assert_field "GET D1 as MEMBER1 (involved, DRAFT) — canEdit=true" "canEdit" "true" "$RESPONSE"
+  assert_field "GET D1 as MEMBER1 (involved, DRAFT) — canDelete=true" "canDelete" "true" "$RESPONSE"
+
+  req GET "$TOKEN_M2" "$BASE_URL/decisions/$D1_ID"
+  assert_field "GET D1 as MEMBER2 (not in teamIds, DRAFT) — canPropose=false" "canPropose" "false" "$RESPONSE"
+  assert_field "GET D1 as MEMBER2 (not in teamIds, DRAFT) — canEdit=false" "canEdit" "false" "$RESPONSE"
+  assert_field "GET D1 as MEMBER2 (not in teamIds, DRAFT) — canDelete=false" "canDelete" "false" "$RESPONSE"
+fi
+
 # Status transitions on D2 (teamIds=[1] = Backend team only)
 if [ -n "$D2_ID" ]; then
   req PATCH "$TOKEN_M1" "$BASE_URL/decisions/$D2_ID/status" '{"status":"PROPOSED"}'
@@ -215,6 +243,11 @@ if [ -n "$D2_ID" ]; then
 
   req PATCH "$TOKEN_TA1" "$BASE_URL/decisions/$D2_ID/status" '{"status":"APPROVED"}'
   assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as TEAM_ADMIN1 (in teamIds) — 200" "200" "$STATUS"
+
+  # D2 is now APPROVED — canEdit and canDelete must be false even for involved team
+  req GET "$TOKEN_M1" "$BASE_URL/decisions/$D2_ID"
+  assert_field "GET D2 as MEMBER1 (involved, APPROVED) — canEdit=false" "canEdit" "false" "$RESPONSE"
+  assert_field "GET D2 as MEMBER1 (involved, APPROVED) — canDelete=false" "canDelete" "false" "$RESPONSE"
 fi
 
 # Status transition on D3 — APP_ADMIN approve
