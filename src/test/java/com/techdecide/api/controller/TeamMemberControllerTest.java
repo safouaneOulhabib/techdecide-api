@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -41,7 +42,9 @@ class TeamMemberControllerTest {
     private TeamMemberDTO buildDTO() {
         return TeamMemberDTO.builder()
                 .userId(2L).name("Alice").email("alice@example.com")
-                .teamRole("MEMBER").teamId(1L).build();
+                .teamRole("MEMBER").teamId(1L)
+                .createdAt(LocalDateTime.of(2024, 6, 1, 10, 0))
+                .build();
     }
 
     // --- GET /api/teams/{teamId}/available-users ---
