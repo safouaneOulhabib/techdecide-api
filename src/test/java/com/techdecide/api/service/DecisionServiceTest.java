@@ -688,4 +688,117 @@ class DecisionServiceTest {
         decisionService.delete(1L, "admin@example.com");
         verify(decisionRepository).delete(existing);
     }
+
+    // ── permission flags (canPropose / canEdit / canDelete) ──────────────────
+
+    @Test
+    void getById_involvedTeamMember_draft_canPropose_canEdit_canDelete() {
+        Decision d = buildDecision(); // DRAFT
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of(buildDecisionTeam(d, buildTeam1())));
+        when(decisionTeamRepository.existsByDecisionIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam1(), "MEMBER")));
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+        assertThat(result.isCanPropose()).isTrue();
+        assertThat(result.isCanEdit()).isTrue();
+        assertThat(result.isCanDelete()).isTrue();
+        assertThat(result.isCanGovern()).isFalse();
+    }
+
+    @Test
+    void getById_involvedTeamMember_proposed_canPropose_canEdit_canDelete() {
+        Decision d = buildDecision();
+        d.setStatus(Decision.Status.PROPOSED);
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of(buildDecisionTeam(d, buildTeam1())));
+        when(decisionTeamRepository.existsByDecisionIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam1(), "MEMBER")));
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+        assertThat(result.isCanPropose()).isTrue();
+        assertThat(result.isCanEdit()).isTrue();
+        assertThat(result.isCanDelete()).isTrue();
+    }
+
+    @Test
+    void getById_involvedTeamMember_rejected_canDelete_cannotEdit() {
+        Decision d = buildDecision();
+        d.setStatus(Decision.Status.REJECTED);
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of(buildDecisionTeam(d, buildTeam1())));
+        when(decisionTeamRepository.existsByDecisionIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam1(), "MEMBER")));
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+        assertThat(result.isCanDelete()).isTrue();
+        assertThat(result.isCanEdit()).isFalse();
+    }
+
+    @Test
+    void getById_involvedTeamMember_approved_cannotEdit_cannotDelete() {
+        Decision d = buildDecision();
+        d.setStatus(Decision.Status.APPROVED);
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of(buildDecisionTeam(d, buildTeam1())));
+        when(decisionTeamRepository.existsByDecisionIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam1(), "MEMBER")));
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+        assertThat(result.isCanEdit()).isFalse();
+        assertThat(result.isCanDelete()).isFalse();
+    }
+
+    @Test
+    void getById_projectMemberNotOnInvolvedTeam_cannotPropose_cannotEdit_cannotDelete() {
+        Decision d = buildDecision(); // Team2 involved
+        mockAliceInTeam1("MEMBER");
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of(buildDecisionTeam(d, buildTeam2())));
+        when(decisionTeamRepository.existsByDecisionIdAndTeamId(1L, 1L)).thenReturn(false);
+
+        DecisionDTO result = decisionService.getById(1L, "alice@example.com");
+        assertThat(result.isCanPropose()).isFalse();
+        assertThat(result.isCanEdit()).isFalse();
+        assertThat(result.isCanDelete()).isFalse();
+    }
+
+    @Test
+    void getById_appAdmin_draft_canEdit_canDelete() {
+        Decision d = buildDecision(); // DRAFT
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of());
+
+        DecisionDTO result = decisionService.getById(1L, "admin@example.com");
+        assertThat(result.isCanPropose()).isTrue();
+        assertThat(result.isCanEdit()).isTrue();
+        assertThat(result.isCanDelete()).isTrue();
+    }
+
+    @Test
+    void getById_appAdmin_approved_cannotEdit_cannotDelete() {
+        Decision d = buildDecision();
+        d.setStatus(Decision.Status.APPROVED);
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of());
+
+        DecisionDTO result = decisionService.getById(1L, "admin@example.com");
+        assertThat(result.isCanEdit()).isFalse();
+        assertThat(result.isCanDelete()).isFalse();
+    }
 }
