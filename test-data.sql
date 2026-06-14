@@ -1,7 +1,7 @@
 -- TechDecide test data
 -- Password for all users: Test1234!
 -- BCrypt hash: $2a$10$x3xBA9.UOGozNFiwF9opfuOGvpczzuDukKdhwgxycpTrmV9BbPSci
--- Run order: org -> teams -> users -> memberships
+-- Run order: org -> teams -> users -> memberships -> projects
 
 -- Organization
 INSERT INTO organizations (id, name, created_at)
@@ -47,22 +47,22 @@ SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 SELECT setval('teams_id_seq', (SELECT MAX(id) FROM teams));
 SELECT setval('organizations_id_seq', (SELECT MAX(id) FROM organizations));
 
--- Team memberships
+-- Team memberships (idempotent — no unique constraint on the table)
 INSERT INTO team_memberships (user_id, team_id, team_role, created_at)
-VALUES (2, 1, 'TEAM_ADMIN', NOW())
-ON CONFLICT DO NOTHING;
+SELECT 2, 1, 'TEAM_ADMIN', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM team_memberships WHERE user_id = 2 AND team_id = 1);
 
 INSERT INTO team_memberships (user_id, team_id, team_role, created_at)
-VALUES (3, 1, 'MEMBER', NOW())
-ON CONFLICT DO NOTHING;
+SELECT 3, 1, 'MEMBER', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM team_memberships WHERE user_id = 3 AND team_id = 1);
 
 INSERT INTO team_memberships (user_id, team_id, team_role, created_at)
-VALUES (4, 2, 'TEAM_ADMIN', NOW())
-ON CONFLICT DO NOTHING;
+SELECT 4, 2, 'TEAM_ADMIN', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM team_memberships WHERE user_id = 4 AND team_id = 2);
 
 INSERT INTO team_memberships (user_id, team_id, team_role, created_at)
-VALUES (5, 2, 'MEMBER', NOW())
-ON CONFLICT DO NOTHING;
+SELECT 5, 2, 'MEMBER', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM team_memberships WHERE user_id = 5 AND team_id = 2);
 
 -- Projects
 INSERT INTO projects (id, name, description, organization_id, created_at, updated_at)
@@ -71,11 +71,11 @@ ON CONFLICT (id) DO NOTHING;
 
 SELECT setval('projects_id_seq', (SELECT MAX(id) FROM projects));
 
--- Project-Team assignments
+-- Project-Team assignments (idempotent — no unique constraint on the table)
 INSERT INTO project_teams (project_id, team_id, created_at)
-VALUES (1, 1, NOW())
-ON CONFLICT DO NOTHING;
+SELECT 1, 1, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM project_teams WHERE project_id = 1 AND team_id = 1);
 
 INSERT INTO project_teams (project_id, team_id, created_at)
-VALUES (1, 2, NOW())
-ON CONFLICT DO NOTHING;
+SELECT 1, 2, NOW()
+WHERE NOT EXISTS (SELECT 1 FROM project_teams WHERE project_id = 1 AND team_id = 2);
