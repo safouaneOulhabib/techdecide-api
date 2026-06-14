@@ -146,16 +146,18 @@ req_noauth POST "$BASE_URL/auth/login" \
 assert "POST /auth/login — wrong password" "401" "$STATUS"
 
 # ── DECISIONS — setup ─────────────────────────────────────────────────────────
+# Decisions now belong to a project (projectId) and are tagged with one or more
+# teams (teamIds). Both Backend and Devops teams are members of GTN project (id=1).
 
 echo ""
 echo "=== DECISIONS ==="
 
-D1_BODY='{"title":"[SCRIPT] Decision 1","context":"ctx","decision":"dec","consequences":"cons","teamId":1}'
-D2_BODY='{"title":"[SCRIPT] Decision 2","context":"ctx","decision":"dec","consequences":"cons","teamId":1}'
-D3_BODY='{"title":"[SCRIPT] Decision 3","context":"ctx","decision":"dec","consequences":"cons","teamId":1}'
+D1_BODY='{"title":"[SCRIPT] Decision 1","context":"ctx","decision":"dec","consequences":"cons","projectId":1,"teamIds":[1]}'
+D2_BODY='{"title":"[SCRIPT] Decision 2","context":"ctx","decision":"dec","consequences":"cons","projectId":1,"teamIds":[1]}'
+D3_BODY='{"title":"[SCRIPT] Decision 3","context":"ctx","decision":"dec","consequences":"cons","projectId":1,"teamIds":[1]}'
 
 req POST "$TOKEN_M1" "$BASE_URL/decisions" "$D1_BODY"
-assert "POST /decisions as MEMBER1 — 201 (creates in own team)" "201" "$STATUS"
+assert "POST /decisions as MEMBER1 (projectId=1, teamIds=[1]) — 201" "201" "$STATUS"
 D1_ID=$(extract_id "$RESPONSE")
 
 req POST "$TOKEN_TA1" "$BASE_URL/decisions" "$D2_BODY"
@@ -180,41 +182,42 @@ assert "GET /decisions as NO_TEAM — 200 (empty list)" "200" "$STATUS"
 req POST "$TOKEN_NOTEAM" "$BASE_URL/decisions" "$D1_BODY"
 assert "POST /decisions as NO_TEAM — 400" "400" "$STATUS"
 
-# Wrong teamId: MEMBER1 sends teamId=2, service forces own team (1)
-WRONG_TEAM_BODY='{"title":"[SCRIPT] Wrong Team","context":"ctx","decision":"dec","consequences":"cons","teamId":2}'
+# Actor's own team must appear in teamIds
+WRONG_TEAM_BODY='{"title":"[SCRIPT] Wrong Team","context":"ctx","decision":"dec","consequences":"cons","projectId":1,"teamIds":[2]}'
 req POST "$TOKEN_M1" "$BASE_URL/decisions" "$WRONG_TEAM_BODY"
-assert "POST /decisions with wrong teamId as MEMBER1 — 201 (own team forced)" "201" "$STATUS"
-DWRONG_ID=$(extract_id "$RESPONSE")
-[ -n "$DWRONG_ID" ] && req DELETE "$TOKEN_M1" "$BASE_URL/decisions/$DWRONG_ID" || true
+assert "POST /decisions as MEMBER1 with teamIds not containing own team — 400" "400" "$STATUS"
 
-# GET by ID
+# GET by ID — visibility is project-scoped; both Backend and Devops are in GTN
 if [ -n "$D1_ID" ]; then
   req GET "$TOKEN_M1" "$BASE_URL/decisions/$D1_ID"
-  assert "GET /decisions/$D1_ID as MEMBER1 (own team) — 200" "200" "$STATUS"
+  assert "GET /decisions/$D1_ID as MEMBER1 (GTN project member) — 200" "200" "$STATUS"
 
   req GET "$TOKEN_M2" "$BASE_URL/decisions/$D1_ID"
-  assert "GET /decisions/$D1_ID as MEMBER2 (wrong team) — 403" "403" "$STATUS"
+  assert "GET /decisions/$D1_ID as MEMBER2 (GTN project member) — 200" "200" "$STATUS"
+
+  req GET "$TOKEN_NOTEAM" "$BASE_URL/decisions/$D1_ID"
+  assert "GET /decisions/$D1_ID as NO_TEAM — 403" "403" "$STATUS"
 
   req GET "$TOKEN_ADMIN" "$BASE_URL/decisions/$D1_ID"
   assert "GET /decisions/$D1_ID as APP_ADMIN — 200" "200" "$STATUS"
 fi
 
-# Status transitions on D2
+# Status transitions on D2 (teamIds=[1] = Backend team only)
 if [ -n "$D2_ID" ]; then
   req PATCH "$TOKEN_M1" "$BASE_URL/decisions/$D2_ID/status" '{"status":"PROPOSED"}'
-  assert "PATCH /decisions/$D2_ID/status DRAFT→PROPOSED as MEMBER1 — 200" "200" "$STATUS"
+  assert "PATCH /decisions/$D2_ID/status DRAFT→PROPOSED as MEMBER1 (involved) — 200" "200" "$STATUS"
 
   req PATCH "$TOKEN_M1" "$BASE_URL/decisions/$D2_ID/status" '{"status":"APPROVED"}'
   assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as MEMBER1 — 403" "403" "$STATUS"
 
   req PATCH "$TOKEN_TA2" "$BASE_URL/decisions/$D2_ID/status" '{"status":"APPROVED"}'
-  assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as TEAM_ADMIN2 (wrong team) — 403" "403" "$STATUS"
+  assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as TEAM_ADMIN2 (not in teamIds) — 403" "403" "$STATUS"
 
   req PATCH "$TOKEN_TA1" "$BASE_URL/decisions/$D2_ID/status" '{"status":"APPROVED"}'
-  assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as TEAM_ADMIN1 — 200" "200" "$STATUS"
+  assert "PATCH /decisions/$D2_ID/status PROPOSED→APPROVED as TEAM_ADMIN1 (in teamIds) — 200" "200" "$STATUS"
 fi
 
-# Status transition on D3 — ADMIN approve
+# Status transition on D3 — APP_ADMIN approve
 if [ -n "$D3_ID" ]; then
   req PATCH "$TOKEN_TA1" "$BASE_URL/decisions/$D3_ID/status" '{"status":"PROPOSED"}'
   # (setup: no assertion)
@@ -223,21 +226,21 @@ if [ -n "$D3_ID" ]; then
   assert "PATCH /decisions/$D3_ID/status PROPOSED→APPROVED as APP_ADMIN — 200" "200" "$STATUS"
 fi
 
-# Edit (D1 is still DRAFT)
+# Edit (D1 is still DRAFT, teamIds=[1] = Backend team only)
 if [ -n "$D1_ID" ]; then
   UPDATE_BODY='{"title":"[SCRIPT] Updated","context":"ctx","decision":"dec"}'
 
   req PUT "$TOKEN_M1" "$BASE_URL/decisions/$D1_ID" "$UPDATE_BODY"
-  assert "PUT /decisions/$D1_ID as MEMBER1 (own decision, DRAFT) — 200" "200" "$STATUS"
+  assert "PUT /decisions/$D1_ID as MEMBER1 (involved team, DRAFT) — 200" "200" "$STATUS"
 
   req PUT "$TOKEN_M2" "$BASE_URL/decisions/$D1_ID" "$UPDATE_BODY"
-  assert "PUT /decisions/$D1_ID as MEMBER2 (wrong team) — 403" "403" "$STATUS"
+  assert "PUT /decisions/$D1_ID as MEMBER2 (not in teamIds) — 403" "403" "$STATUS"
 
   req DELETE "$TOKEN_M2" "$BASE_URL/decisions/$D1_ID"
-  assert "DELETE /decisions/$D1_ID as MEMBER2 (wrong team) — 403" "403" "$STATUS"
+  assert "DELETE /decisions/$D1_ID as MEMBER2 (not in teamIds) — 403" "403" "$STATUS"
 
   req DELETE "$TOKEN_M1" "$BASE_URL/decisions/$D1_ID"
-  assert "DELETE /decisions/$D1_ID as MEMBER1 (own decision, DRAFT) — 204" "204" "$STATUS"
+  assert "DELETE /decisions/$D1_ID as MEMBER1 (involved team, DRAFT) — 204" "204" "$STATUS"
 fi
 
 # ── COMMENTS ─────────────────────────────────────────────────────────────────
@@ -249,12 +252,16 @@ if [ -n "$D2_ID" ]; then
   COMMENT_BODY='{"content":"Script test comment","vote":"APPROVE"}'
 
   req POST "$TOKEN_M1" "$BASE_URL/decisions/$D2_ID/comments" "$COMMENT_BODY"
-  assert "POST /decisions/$D2_ID/comments as MEMBER1 (own team) — 201" "201" "$STATUS"
+  assert "POST /decisions/$D2_ID/comments as MEMBER1 (GTN project member) — 201" "201" "$STATUS"
   C1_ID=$(extract_id "$RESPONSE")
 
+  # MEMBER2 (Devops) is also a GTN project member — project membership gates comments
   req POST "$TOKEN_M2" "$BASE_URL/decisions/$D2_ID/comments" "$COMMENT_BODY"
-  assert "POST /decisions/$D2_ID/comments as MEMBER2 (wrong team) — 403" "403" "$STATUS"
-  # NOTE: CommentService has no team-scope check — this test documents a missing gate
+  assert "POST /decisions/$D2_ID/comments as MEMBER2 (GTN project member) — 201" "201" "$STATUS"
+  C2_ID=$(extract_id "$RESPONSE")
+
+  req POST "$TOKEN_NOTEAM" "$BASE_URL/decisions/$D2_ID/comments" "$COMMENT_BODY"
+  assert "POST /decisions/$D2_ID/comments as NO_TEAM — 403" "403" "$STATUS"
 
   if [ -n "$C1_ID" ]; then
     req DELETE "$TOKEN_TA1" "$BASE_URL/comments/$C1_ID"
@@ -265,6 +272,8 @@ if [ -n "$D2_ID" ]; then
   else
     echo "  ⚠️  C1 creation failed — skipping comment delete tests"
   fi
+
+  [ -n "$C2_ID" ] && req DELETE "$TOKEN_M2" "$BASE_URL/comments/$C2_ID" || true
 else
   echo "  ⚠️  No D2_ID — skipping comment tests"
 fi

@@ -64,7 +64,7 @@ public class ReportService {
                     .decisionContext(decision.getContext())
                     .decisionContent(decision.getDecision())
                     .decisionConsequences(decision.getConsequences())
-                    .decisionTeamName(decision.getTeam() != null ? decision.getTeam().getName() : null)
+                    .decisionTeamName(decision.getProject() != null ? decision.getProject().getName() : null)
                     .decisionAuthorName(decision.getAuthor() != null ? decision.getAuthor().getName() : null)
                     .decisionCreatedAt(decision.getCreatedAt())
                     .alternativesJson(serializeAlternatives(decision))

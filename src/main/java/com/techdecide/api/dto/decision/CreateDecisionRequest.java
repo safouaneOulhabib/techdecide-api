@@ -1,6 +1,7 @@
 package com.techdecide.api.dto.decision;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -21,8 +22,11 @@ public class CreateDecisionRequest {
 
     private String consequences;
 
-    @NotNull(message = "Team ID is required")
-    private Long teamId;
+    @NotNull(message = "Project ID is required")
+    private Long projectId;
+
+    @NotEmpty(message = "At least one team ID is required")
+    private List<Long> teamIds;
 
     private List<Long> tagIds;
 

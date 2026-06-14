@@ -41,8 +41,11 @@ public class Decision {
     private User author;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", nullable = false)
-    private Team team;
+    @JoinColumn(name = "project_id", nullable = false)
+    private Project project;
+
+    @OneToMany(mappedBy = "decision", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DecisionTeam> decisionTeams;
 
     @OneToMany(mappedBy = "decision", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Alternative> alternatives;
