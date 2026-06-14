@@ -156,12 +156,12 @@ class DecisionServiceTest {
     }
 
     @Test
-    void create_noTeam_throwsForbiddenException() {
+    void create_noTeam_throwsBadRequestException() {
         CreateDecisionRequest req = buildCreateRequest();
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
         when(teamMembershipRepository.findByUserId(1L)).thenReturn(Optional.empty());
 
-        assertThrows(ForbiddenException.class, () -> decisionService.create(req, "alice@example.com"));
+        assertThrows(BadRequestException.class, () -> decisionService.create(req, "alice@example.com"));
         verify(decisionRepository, never()).save(any());
     }
 

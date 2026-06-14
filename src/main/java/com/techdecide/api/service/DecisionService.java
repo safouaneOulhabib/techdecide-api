@@ -38,7 +38,7 @@ public class DecisionService {
         }
 
         TeamMembership membership = teamMembershipRepository.findByUserId(author.getId())
-                .orElseThrow(() -> new ForbiddenException("You must be assigned to a team to create decisions"));
+                .orElseThrow(() -> new BadRequestException("You must be assigned to a team to create decisions"));
 
         Long actorTeamId = membership.getTeam().getId();
 
