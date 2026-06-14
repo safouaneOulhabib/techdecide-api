@@ -437,6 +437,92 @@ else
   echo "  ⚠️  Tag creation failed — skipping delete tests"
 fi
 
+# ── PROJECTS ──────────────────────────────────────────────────────────────────
+
+echo ""
+echo "=== PROJECTS ==="
+
+PROJECT_NAME="Script Project $$"
+
+# APP_ADMIN can create
+req POST "$TOKEN_ADMIN" "$BASE_URL/projects" \
+  "{\"name\":\"$PROJECT_NAME\",\"description\":\"created by script\",\"organizationId\":1}"
+assert "POST /projects as APP_ADMIN — 201" "201" "$STATUS"
+P1_ID=$(extract_id "$RESPONSE")
+
+# MEMBER cannot create
+req POST "$TOKEN_M1" "$BASE_URL/projects" \
+  "{\"name\":\"${PROJECT_NAME} M\",\"description\":\"should fail\",\"organizationId\":1}"
+assert "POST /projects as MEMBER1 — 403" "403" "$STATUS"
+
+# TEAM_ADMIN cannot create
+req POST "$TOKEN_TA1" "$BASE_URL/projects" \
+  "{\"name\":\"${PROJECT_NAME} TA\",\"description\":\"should fail\",\"organizationId\":1}"
+assert "POST /projects as TEAM_ADMIN1 — 403" "403" "$STATUS"
+
+# GET all — APP_ADMIN sees all
+req GET "$TOKEN_ADMIN" "$BASE_URL/projects"
+assert "GET /projects as APP_ADMIN — 200" "200" "$STATUS"
+
+# GET all — member sees own projects (Backend Team is in GTN project id=1)
+req GET "$TOKEN_M1" "$BASE_URL/projects"
+assert "GET /projects as MEMBER1 — 200 (team-scoped)" "200" "$STATUS"
+
+# GET all — no-team gets empty list
+req GET "$TOKEN_NOTEAM" "$BASE_URL/projects"
+assert "GET /projects as NO_TEAM — 200 (empty)" "200" "$STATUS"
+
+if [ -n "$P1_ID" ]; then
+  # GET by id — APP_ADMIN
+  req GET "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID"
+  assert "GET /projects/$P1_ID as APP_ADMIN — 200" "200" "$STATUS"
+
+  # GET by id — NO_TEAM gets 403
+  req GET "$TOKEN_NOTEAM" "$BASE_URL/projects/$P1_ID"
+  assert "GET /projects/$P1_ID as NO_TEAM — 403" "403" "$STATUS"
+
+  # Assign Backend Team (id=1) to new project
+  req POST "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID/teams" '{"teamId":1}'
+  assert "POST /projects/$P1_ID/teams (teamId=1) as APP_ADMIN — 201" "201" "$STATUS"
+
+  # Duplicate assignment → 409
+  req POST "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID/teams" '{"teamId":1}'
+  assert "POST /projects/$P1_ID/teams (teamId=1) duplicate — 409" "409" "$STATUS"
+
+  # MEMBER cannot assign team
+  req POST "$TOKEN_M1" "$BASE_URL/projects/$P1_ID/teams" '{"teamId":2}'
+  assert "POST /projects/$P1_ID/teams as MEMBER1 — 403" "403" "$STATUS"
+
+  # GET assigned teams
+  req GET "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID/teams"
+  assert "GET /projects/$P1_ID/teams as APP_ADMIN — 200" "200" "$STATUS"
+
+  # GET available teams — APP_ADMIN only
+  req GET "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID/available-teams"
+  assert "GET /projects/$P1_ID/available-teams as APP_ADMIN — 200" "200" "$STATUS"
+
+  req GET "$TOKEN_M1" "$BASE_URL/projects/$P1_ID/available-teams"
+  assert "GET /projects/$P1_ID/available-teams as MEMBER1 — 403" "403" "$STATUS"
+
+  # Remove team — MEMBER cannot
+  req DELETE "$TOKEN_M1" "$BASE_URL/projects/$P1_ID/teams/1"
+  assert "DELETE /projects/$P1_ID/teams/1 as MEMBER1 — 403" "403" "$STATUS"
+
+  # Remove team — APP_ADMIN can
+  req DELETE "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID/teams/1"
+  assert "DELETE /projects/$P1_ID/teams/1 as APP_ADMIN — 204" "204" "$STATUS"
+
+  # Delete project — MEMBER cannot
+  req DELETE "$TOKEN_M1" "$BASE_URL/projects/$P1_ID"
+  assert "DELETE /projects/$P1_ID as MEMBER1 — 403" "403" "$STATUS"
+
+  # Delete project — APP_ADMIN can
+  req DELETE "$TOKEN_ADMIN" "$BASE_URL/projects/$P1_ID"
+  assert "DELETE /projects/$P1_ID as APP_ADMIN — 204" "204" "$STATUS"
+else
+  echo "  ⚠️  Project creation failed — skipping project detail tests"
+fi
+
 # ── CLEANUP ───────────────────────────────────────────────────────────────────
 
 echo ""

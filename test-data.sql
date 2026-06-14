@@ -42,7 +42,7 @@ INSERT INTO users (id, email, name, password, app_role, created_at)
 VALUES (6, 'noteam@techdecide.com', 'No Team User', '$2a$10$x3xBA9.UOGozNFiwF9opfuOGvpczzuDukKdhwgxycpTrmV9BbPSci', 'USER', NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Sync sequence so future inserts don't collide with seeded ids
+-- Sync sequences so future inserts don't collide with seeded ids
 SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
 SELECT setval('teams_id_seq', (SELECT MAX(id) FROM teams));
 SELECT setval('organizations_id_seq', (SELECT MAX(id) FROM organizations));
@@ -62,4 +62,20 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO team_memberships (user_id, team_id, team_role, created_at)
 VALUES (5, 2, 'MEMBER', NOW())
+ON CONFLICT DO NOTHING;
+
+-- Projects
+INSERT INTO projects (id, name, description, organization_id, created_at, updated_at)
+VALUES (1, 'GTN', 'GTN product project', 1, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval('projects_id_seq', (SELECT MAX(id) FROM projects));
+
+-- Project-Team assignments
+INSERT INTO project_teams (project_id, team_id, created_at)
+VALUES (1, 1, NOW())
+ON CONFLICT DO NOTHING;
+
+INSERT INTO project_teams (project_id, team_id, created_at)
+VALUES (1, 2, NOW())
 ON CONFLICT DO NOTHING;
