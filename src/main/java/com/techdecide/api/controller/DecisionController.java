@@ -45,13 +45,7 @@ public class DecisionController {
         return ResponseEntity.ok(decisionService.getById(id, userDetails.getUsername()));
     }
 
-    @GetMapping("/team/{teamId}")
-    public ResponseEntity<List<DecisionDTO>> getByTeam(
-            @PathVariable Long teamId) {
-        return ResponseEntity.ok(decisionService.getByTeam(teamId));
-    }
-
-    @GetMapping("/search")
+@GetMapping("/search")
     public ResponseEntity<List<DecisionDTO>> search(
             @RequestParam String keyword) {
         return ResponseEntity.ok(decisionService.search(keyword));

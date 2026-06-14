@@ -17,20 +17,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DecisionRepositoryTest {
 
     @Autowired DecisionRepository decisionRepository;
+    @Autowired ProjectRepository projectRepository;
     @Autowired TeamRepository teamRepository;
     @Autowired UserRepository userRepository;
     @Autowired OrganizationRepository organizationRepository;
     @Autowired TagRepository tagRepository;
 
-    private Team team;
+    private Project project;
     private User user;
 
     @BeforeEach
     void setUp() {
         Organization org = organizationRepository.save(
                 Organization.builder().name("Acme").build());
-        team = teamRepository.save(
-                Team.builder().name("Engineering").organization(org).build());
+        project = projectRepository.save(
+                Project.builder().name("GTN").organization(org).build());
         user = userRepository.save(
                 User.builder().name("Alice").email("alice@example.com")
                         .password("pw").appRole("USER").build());
@@ -39,18 +40,19 @@ class DecisionRepositoryTest {
     private Decision saveDecision(String title, String context, String decisionText) {
         Decision d = Decision.builder()
                 .title(title).context(context).decision(decisionText)
-                .author(user).team(team)
+                .author(user).project(project)
                 .tags(new ArrayList<>()).alternatives(new ArrayList<>())
                 .build();
+        d.setDecisionTeams(new ArrayList<>());
         return decisionRepository.save(d);
     }
 
     @Test
-    void findByTeamId_returnsDecisionsForTeam() {
+    void findByProjectId_returnsDecisionsForProject() {
         saveDecision("Decision A", "Context A", "Choice A");
         saveDecision("Decision B", "Context B", "Choice B");
 
-        List<Decision> results = decisionRepository.findByTeamId(team.getId());
+        List<Decision> results = decisionRepository.findByProjectId(project.getId());
 
         assertThat(results).hasSize(2);
         assertThat(results).extracting(Decision::getTitle)
@@ -58,30 +60,16 @@ class DecisionRepositoryTest {
     }
 
     @Test
-    void findByTeamId_differentTeam_returnsEmpty() {
+    void findByProjectId_differentProject_returnsEmpty() {
         Organization org2 = organizationRepository.save(
                 Organization.builder().name("Beta").build());
-        Team otherTeam = teamRepository.save(
-                Team.builder().name("Design").organization(org2).build());
+        Project otherProject = projectRepository.save(
+                Project.builder().name("Other").organization(org2).build());
         saveDecision("Decision A", "Context", "Choice");
 
-        List<Decision> results = decisionRepository.findByTeamId(otherTeam.getId());
+        List<Decision> results = decisionRepository.findByProjectId(otherProject.getId());
 
         assertThat(results).isEmpty();
-    }
-
-    @Test
-    void findByTeamIdAndStatus_returnsOnlyMatchingStatus() {
-        Decision d1 = saveDecision("Draft Decision", "Context", "Choice");
-        assertThat(d1.getStatus()).isEqualTo(Decision.Status.DRAFT);
-
-        List<Decision> drafts = decisionRepository.findByTeamIdAndStatus(
-                team.getId(), Decision.Status.DRAFT);
-        List<Decision> approved = decisionRepository.findByTeamIdAndStatus(
-                team.getId(), Decision.Status.APPROVED);
-
-        assertThat(drafts).hasSize(1);
-        assertThat(approved).isEmpty();
     }
 
     @Test

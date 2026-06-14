@@ -45,9 +45,14 @@ class DecisionControllerTest {
                 .id(1L).title("Use PostgreSQL").context("We need a DB")
                 .decision("PostgreSQL chosen").consequences("Cost implications")
                 .status(Decision.Status.DRAFT)
-                .authorName("Alice").teamName("Engineering")
-                .tags(List.of(TagDTO.builder().id(1L).name("backend").color("#ff0000").build())).alternatives(List.of())
-                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+                .authorId(1L).authorName("Alice")
+                .projectId(1L).projectName("GTN")
+                .teams(List.of(DecisionDTO.TeamRef.builder().teamId(1L).teamName("Backend Team").build()))
+                .tags(List.of(TagDTO.builder().id(1L).name("backend").color("#ff0000").build()))
+                .alternatives(List.of())
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .canVote(true).canGovern(false)
+                .build();
     }
 
     private CreateDecisionRequest buildCreateRequest() {
@@ -55,7 +60,8 @@ class DecisionControllerTest {
         req.setTitle("Use PostgreSQL");
         req.setContext("We need a DB");
         req.setDecision("PostgreSQL chosen");
-        req.setTeamId(1L);
+        req.setProjectId(1L);
+        req.setTeamIds(List.of(1L));
         return req;
     }
 
@@ -72,7 +78,9 @@ class DecisionControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.title").value("Use PostgreSQL"))
-                .andExpect(jsonPath("$.status").value("DRAFT"));
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.projectId").value(1))
+                .andExpect(jsonPath("$.teams[0].teamId").value(1));
     }
 
     @Test
@@ -112,14 +120,44 @@ class DecisionControllerTest {
 
     @Test
     @WithMockUser
-    void create_missingTeamId_returns400() throws Exception {
+    void create_missingProjectId_returns400() throws Exception {
         CreateDecisionRequest req = buildCreateRequest();
-        req.setTeamId(null);
+        req.setProjectId(null);
 
         mockMvc.perform(post("/api/decisions").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
+
+        verify(decisionService, never()).create(any(), any());
+    }
+
+    @Test
+    @WithMockUser
+    void create_missingTeamIds_returns400() throws Exception {
+        CreateDecisionRequest req = buildCreateRequest();
+        req.setTeamIds(null);
+
+        mockMvc.perform(post("/api/decisions").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+
+        verify(decisionService, never()).create(any(), any());
+    }
+
+    @Test
+    @WithMockUser
+    void create_emptyTeamIds_returns400() throws Exception {
+        CreateDecisionRequest req = buildCreateRequest();
+        req.setTeamIds(List.of());
+
+        mockMvc.perform(post("/api/decisions").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+
+        verify(decisionService, never()).create(any(), any());
     }
 
     // --- GET /api/decisions ---
@@ -132,7 +170,8 @@ class DecisionControllerTest {
         mockMvc.perform(get("/api/decisions"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].title").value("Use PostgreSQL"));
+                .andExpect(jsonPath("$[0].title").value("Use PostgreSQL"))
+                .andExpect(jsonPath("$[0].projectId").value(1));
     }
 
     @Test
@@ -159,7 +198,8 @@ class DecisionControllerTest {
 
         mockMvc.perform(get("/api/decisions/1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1));
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.projectName").value("GTN"));
     }
 
     @Test
@@ -171,18 +211,6 @@ class DecisionControllerTest {
         mockMvc.perform(get("/api/decisions/99"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Decision not found with id: 99"));
-    }
-
-    // --- GET /api/decisions/team/{teamId} ---
-
-    @Test
-    @WithMockUser
-    void getByTeam_returns200WithList() throws Exception {
-        when(decisionService.getByTeam(1L)).thenReturn(List.of(buildDTO()));
-
-        mockMvc.perform(get("/api/decisions/team/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].teamName").value("Engineering"));
     }
 
     // --- GET /api/decisions/search ---

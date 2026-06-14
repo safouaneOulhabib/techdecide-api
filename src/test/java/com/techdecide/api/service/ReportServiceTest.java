@@ -48,12 +48,14 @@ class ReportServiceTest {
     private User appAdmin;
     private Team team;
     private Organization org;
+    private Project project;
     private TeamMembership authorMembership;
 
     @BeforeEach
     void setUp() {
         org = Organization.builder().id(1L).name("Acme").build();
         team = Team.builder().id(1L).name("Engineering").organization(org).build();
+        project = Project.builder().id(1L).name("GTN").organization(org).build();
         author = User.builder().id(1L).name("Alice").email("alice@example.com")
                 .password("pw").appRole("USER").build();
         otherUser = User.builder().id(2L).name("Bob").email("bob@example.com")
@@ -65,7 +67,7 @@ class ReportServiceTest {
     }
 
     private Decision buildDecision(Long id, String title, Decision.Status status) {
-        return Decision.builder()
+        Decision d = Decision.builder()
                 .id(id)
                 .title(title)
                 .context("Some context")
@@ -73,11 +75,13 @@ class ReportServiceTest {
                 .consequences("Some consequences")
                 .status(status)
                 .author(author)
-                .team(team)
+                .project(project)
                 .alternatives(new ArrayList<>())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
+        d.setDecisionTeams(new ArrayList<>());
+        return d;
     }
 
     private Report buildReport(Long id, List<ReportItem> items) {

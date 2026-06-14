@@ -19,8 +19,9 @@ class CommentRepositoryTest {
     @Autowired CommentRepository commentRepository;
     @Autowired DecisionRepository decisionRepository;
     @Autowired UserRepository userRepository;
-    @Autowired TeamRepository teamRepository;
     @Autowired OrganizationRepository organizationRepository;
+    @Autowired ProjectRepository projectRepository;
+    // TeamRepository no longer needed — decisions scope to projects now
 
     private User alice;
     private User bob;
@@ -30,18 +31,20 @@ class CommentRepositoryTest {
     void setUp() {
         Organization org = organizationRepository.save(
                 Organization.builder().name("Acme").build());
-        Team team = teamRepository.save(
-                Team.builder().name("Engineering").organization(org).build());
+        Project project = projectRepository.save(
+                Project.builder().name("GTN").organization(org).build());
 
         alice = userRepository.save(User.builder().name("Alice").email("alice@example.com")
                 .password("pw").appRole("USER").build());
         bob = userRepository.save(User.builder().name("Bob").email("bob@example.com")
                 .password("pw").appRole("USER").build());
 
-        decision = decisionRepository.save(Decision.builder()
+        Decision d = Decision.builder()
                 .title("Use PostgreSQL").context("Context").decision("Choice")
-                .author(alice).team(team)
-                .tags(new ArrayList<>()).alternatives(new ArrayList<>()).build());
+                .author(alice).project(project)
+                .tags(new ArrayList<>()).alternatives(new ArrayList<>()).build();
+        d.setDecisionTeams(new ArrayList<>());
+        decision = decisionRepository.save(d);
     }
 
     private Comment saveComment(String content, Comment.Vote vote, User author, Decision d) {
@@ -72,12 +75,14 @@ class CommentRepositoryTest {
     void findByDecisionId_differentDecision_returnsEmpty() {
         Organization org2 = organizationRepository.save(
                 Organization.builder().name("Beta").build());
-        Team team2 = teamRepository.save(
-                Team.builder().name("Design").organization(org2).build());
-        Decision otherDecision = decisionRepository.save(Decision.builder()
+        Project project2 = projectRepository.save(
+                Project.builder().name("Other Project").organization(org2).build());
+        Decision other = Decision.builder()
                 .title("Other").context("C").decision("D")
-                .author(alice).team(team2)
-                .tags(new ArrayList<>()).alternatives(new ArrayList<>()).build());
+                .author(alice).project(project2)
+                .tags(new ArrayList<>()).alternatives(new ArrayList<>()).build();
+        other.setDecisionTeams(new ArrayList<>());
+        Decision otherDecision = decisionRepository.save(other);
 
         saveComment("Comment on first", null, alice, decision);
 

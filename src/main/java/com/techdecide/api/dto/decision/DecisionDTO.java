@@ -18,8 +18,11 @@ public class DecisionDTO {
     private String decision;
     private String consequences;
     private Status status;
+    private Long authorId;
     private String authorName;
-    private String teamName;
+    private Long projectId;
+    private String projectName;
+    private List<TeamRef> teams;
     private List<TagDTO> tags;
     private List<AlternativeDTO> alternatives;
     private Long supersededById;
@@ -27,6 +30,15 @@ public class DecisionDTO {
     private LocalDateTime reviewDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private boolean canVote;
+    private boolean canGovern;
+
+    @Data
+    @Builder
+    public static class TeamRef {
+        private Long teamId;
+        private String teamName;
+    }
 
     @Data
     @Builder

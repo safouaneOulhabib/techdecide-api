@@ -9,6 +9,7 @@ import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.CommentRepository;
 import com.techdecide.api.repository.DecisionRepository;
+import com.techdecide.api.repository.ProjectTeamRepository;
 import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class CommentService {
     private final DecisionRepository decisionRepository;
     private final UserRepository userRepository;
     private final TeamMembershipRepository teamMembershipRepository;
+    private final ProjectTeamRepository projectTeamRepository;
 
     public CommentDTO create(Long decisionId, CreateCommentRequest request, String authorEmail) {
         Decision decision = decisionRepository.findById(decisionId)
@@ -36,8 +38,12 @@ public class CommentService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", null));
 
         if (!"APP_ADMIN".equals(author.getAppRole())) {
-            teamMembershipRepository.findByUserIdAndTeamId(author.getId(), decision.getTeam().getId())
-                    .orElseThrow(() -> new ForbiddenException("You must be a member of this team to comment"));
+            Long teamId = teamMembershipRepository.findByUserId(author.getId())
+                    .map(m -> m.getTeam().getId())
+                    .orElseThrow(() -> new ForbiddenException("You must be a project member to comment"));
+            if (!projectTeamRepository.existsByProjectIdAndTeamId(decision.getProject().getId(), teamId)) {
+                throw new ForbiddenException("You must be a member of a team assigned to this project to comment");
+            }
         }
 
         Comment comment = Comment.builder()

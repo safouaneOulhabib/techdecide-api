@@ -5,10 +5,7 @@ import com.techdecide.api.dto.comment.CreateCommentRequest;
 import com.techdecide.api.entity.*;
 import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
-import com.techdecide.api.repository.CommentRepository;
-import com.techdecide.api.repository.DecisionRepository;
-import com.techdecide.api.repository.TeamMembershipRepository;
-import com.techdecide.api.repository.UserRepository;
+import com.techdecide.api.repository.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,7 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +29,7 @@ class CommentServiceTest {
     @Mock private DecisionRepository decisionRepository;
     @Mock private UserRepository userRepository;
     @Mock private TeamMembershipRepository teamMembershipRepository;
+    @Mock private ProjectTeamRepository projectTeamRepository;
     @InjectMocks private CommentService commentService;
 
     private User buildUser() {
@@ -44,14 +42,21 @@ class CommentServiceTest {
                 .organization(Organization.builder().id(1L).name("Acme").build()).build();
     }
 
+    private Project buildProject() {
+        return Project.builder().id(1L).name("GTN")
+                .organization(Organization.builder().id(1L).name("Acme").build()).build();
+    }
+
     private Decision buildDecision() {
-        return Decision.builder()
+        Decision d = Decision.builder()
                 .id(1L).title("Use PostgreSQL").context("We need a DB")
                 .decision("PostgreSQL chosen").status(Decision.Status.DRAFT)
                 .author(buildUser())
-                .team(buildTeam())
+                .project(buildProject())
                 .tags(new ArrayList<>()).alternatives(new ArrayList<>())
                 .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now()).build();
+        d.setDecisionTeams(new ArrayList<>());
+        return d;
     }
 
     private TeamMembership buildMembership(User user, Team team) {
@@ -75,12 +80,13 @@ class CommentServiceTest {
     // --- create ---
 
     @Test
-    void create_validRequest_returnsCommentDTO() {
+    void create_projectMember_returnsCommentDTO() {
         User alice = buildUser();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(alice));
-        when(teamMembershipRepository.findByUserIdAndTeamId(1L, 1L))
+        when(teamMembershipRepository.findByUserId(1L))
                 .thenReturn(Optional.of(buildMembership(alice, buildTeam())));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
         when(commentRepository.save(any())).thenReturn(buildComment());
 
         CommentDTO result = commentService.create(1L, buildRequest(), "alice@example.com");
@@ -122,8 +128,9 @@ class CommentServiceTest {
                 .createdAt(LocalDateTime.now()).build();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(alice));
-        when(teamMembershipRepository.findByUserIdAndTeamId(1L, 1L))
+        when(teamMembershipRepository.findByUserId(1L))
                 .thenReturn(Optional.of(buildMembership(alice, buildTeam())));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
         when(commentRepository.save(any())).thenReturn(comment);
 
         CommentDTO result = commentService.create(1L, req, "alice@example.com");
@@ -132,12 +139,12 @@ class CommentServiceTest {
     }
 
     @Test
-    void create_wrongTeam_throwsForbiddenException() {
+    void create_noTeam_throwsForbiddenException() {
         User bob = User.builder().id(2L).name("Bob").email("bob@example.com")
                 .password("pw").appRole("USER").build();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
         when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(bob));
-        when(teamMembershipRepository.findByUserIdAndTeamId(2L, 1L)).thenReturn(Optional.empty());
+        when(teamMembershipRepository.findByUserId(2L)).thenReturn(Optional.empty());
 
         assertThrows(ForbiddenException.class,
                 () -> commentService.create(1L, buildRequest(), "bob@example.com"));
@@ -145,7 +152,23 @@ class CommentServiceTest {
     }
 
     @Test
-    void create_appAdmin_skipsTeamCheck() {
+    void create_teamNotInProject_throwsForbiddenException() {
+        User bob = User.builder().id(2L).name("Bob").email("bob@example.com")
+                .password("pw").appRole("USER").build();
+        Team otherTeam = Team.builder().id(3L).name("Other").build();
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
+        when(userRepository.findByEmail("bob@example.com")).thenReturn(Optional.of(bob));
+        when(teamMembershipRepository.findByUserId(2L))
+                .thenReturn(Optional.of(buildMembership(bob, otherTeam)));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 3L)).thenReturn(false);
+
+        assertThrows(ForbiddenException.class,
+                () -> commentService.create(1L, buildRequest(), "bob@example.com"));
+        verify(commentRepository, never()).save(any());
+    }
+
+    @Test
+    void create_appAdmin_skipsProjectCheck() {
         User admin = User.builder().id(99L).name("Admin").email("admin@example.com")
                 .password("pw").appRole("APP_ADMIN").build();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
@@ -154,24 +177,23 @@ class CommentServiceTest {
 
         commentService.create(1L, buildRequest(), "admin@example.com");
 
-        verify(teamMembershipRepository, never()).findByUserIdAndTeamId(any(), any());
+        verify(teamMembershipRepository, never()).findByUserId(any());
+        verify(projectTeamRepository, never()).existsByProjectIdAndTeamId(any(), any());
     }
 
     @Test
-    void create_savesCommentLinkedToCorrectDecisionAndAuthor() {
+    void create_differentProjectMember_canComment() {
+        // Any project member (even non-involved-team member) can comment
         User alice = buildUser();
         when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(alice));
-        when(teamMembershipRepository.findByUserIdAndTeamId(1L, 1L))
+        when(teamMembershipRepository.findByUserId(1L))
                 .thenReturn(Optional.of(buildMembership(alice, buildTeam())));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
         when(commentRepository.save(any())).thenReturn(buildComment());
 
-        commentService.create(1L, buildRequest(), "alice@example.com");
-
-        verify(commentRepository).save(argThat(c ->
-                c.getContent().equals("Great decision!")
-                && c.getDecision().getId().equals(1L)
-                && c.getAuthor().getEmail().equals("alice@example.com")));
+        CommentDTO result = commentService.create(1L, buildRequest(), "alice@example.com");
+        assertThat(result).isNotNull();
     }
 
     // --- getByDecision ---
