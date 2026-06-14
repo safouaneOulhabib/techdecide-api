@@ -398,6 +398,45 @@ req POST "$TOKEN_M1" "$BASE_URL/organizations" \
 assert "POST /organizations as MEMBER1 — 403" "403" "$STATUS"
 # NOTE: OrganizationService has no role gate — this test documents a missing check
 
+# ── TAGS ──────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "=== TAGS ==="
+
+TAG_NAME="script-tag-$$"
+
+# Any authenticated user can list tags
+req GET "$TOKEN_M1" "$BASE_URL/tags"
+assert "GET /tags as MEMBER1 — 200" "200" "$STATUS"
+
+req GET "$TOKEN_ADMIN" "$BASE_URL/tags"
+assert "GET /tags as APP_ADMIN — 200" "200" "$STATUS"
+
+# Only APP_ADMIN can create tags
+req POST "$TOKEN_ADMIN" "$BASE_URL/tags" \
+  "{\"name\":\"$TAG_NAME\",\"color\":\"#ff0000\"}"
+assert "POST /tags as APP_ADMIN — 201" "201" "$STATUS"
+TAG_ID=$(extract_id "$RESPONSE")
+
+req POST "$TOKEN_M1" "$BASE_URL/tags" \
+  "{\"name\":\"${TAG_NAME}-member\",\"color\":\"#00ff00\"}"
+assert "POST /tags as MEMBER1 — 403" "403" "$STATUS"
+
+req POST "$TOKEN_TA1" "$BASE_URL/tags" \
+  "{\"name\":\"${TAG_NAME}-teamadmin\",\"color\":\"#0000ff\"}"
+assert "POST /tags as TEAM_ADMIN1 — 403" "403" "$STATUS"
+
+# Only APP_ADMIN can delete tags
+if [ -n "$TAG_ID" ]; then
+  req DELETE "$TOKEN_M1" "$BASE_URL/tags/$TAG_ID"
+  assert "DELETE /tags/$TAG_ID as MEMBER1 — 403" "403" "$STATUS"
+
+  req DELETE "$TOKEN_ADMIN" "$BASE_URL/tags/$TAG_ID"
+  assert "DELETE /tags/$TAG_ID as APP_ADMIN — 204" "204" "$STATUS"
+else
+  echo "  ⚠️  Tag creation failed — skipping delete tests"
+fi
+
 # ── CLEANUP ───────────────────────────────────────────────────────────────────
 
 echo ""

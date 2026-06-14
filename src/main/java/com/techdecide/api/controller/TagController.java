@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,10 +22,11 @@ public class TagController {
 
     @PostMapping
     public ResponseEntity<TagDTO> create(
-            @Valid @RequestBody CreateTagRequest request) {
+            @Valid @RequestBody CreateTagRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(tagService.create(request));
+                .body(tagService.create(request, userDetails.getUsername()));
     }
 
     @GetMapping
@@ -37,8 +40,10 @@ public class TagController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        tagService.delete(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        tagService.delete(id, userDetails.getUsername());
         return ResponseEntity.noContent().build();
     }
 }

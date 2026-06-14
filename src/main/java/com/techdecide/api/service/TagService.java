@@ -3,9 +3,12 @@ package com.techdecide.api.service;
 import com.techdecide.api.dto.tag.CreateTagRequest;
 import com.techdecide.api.dto.tag.TagDTO;
 import com.techdecide.api.entity.Tag;
+import com.techdecide.api.entity.User;
 import com.techdecide.api.exception.ConflictException;
+import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.TagRepository;
+import com.techdecide.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +22,10 @@ import java.util.stream.Collectors;
 public class TagService {
 
     private final TagRepository tagRepository;
+    private final UserRepository userRepository;
 
-    public TagDTO create(CreateTagRequest request) {
+    public TagDTO create(CreateTagRequest request, String actorEmail) {
+        requireAppAdmin(actorEmail);
         if (tagRepository.existsByName(request.getName())) {
             throw new ConflictException("Tag with name '" + request.getName() + "' already exists");
         }
@@ -47,10 +52,19 @@ public class TagService {
         return mapToDTO(tag);
     }
 
-    public void delete(Long id) {
+    public void delete(Long id, String actorEmail) {
+        requireAppAdmin(actorEmail);
         Tag tag = tagRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag", id));
         tagRepository.delete(tag);
+    }
+
+    private void requireAppAdmin(String actorEmail) {
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!"APP_ADMIN".equals(actor.getAppRole())) {
+            throw new ForbiddenException("Only APP_ADMIN can manage tags");
+        }
     }
 
     private TagDTO mapToDTO(Tag tag) {
