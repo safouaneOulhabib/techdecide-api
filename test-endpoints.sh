@@ -372,31 +372,48 @@ assert "DELETE /teams/1/members/6 as TEAM_ADMIN1 — 204 (user 6 removed)" "204"
 echo ""
 echo "=== REPORTS ==="
 
+# Reports are now scoped to a project. D2 belongs to project 1 (GTN).
+# Backend (team 1) and Devops (team 2) are both assigned to GTN.
+# So MEMBER2 (Devops) can now view reports in GTN project.
+
 if [ -n "$D2_ID" ]; then
-  REPORT_BODY="{\"title\":\"[SCRIPT] Test Report\",\"introduction\":\"intro\",\"decisionIds\":[$D2_ID]}"
+  REPORT_BODY="{\"title\":\"[SCRIPT] Test Report\",\"introduction\":\"intro\",\"projectId\":1,\"decisionIds\":[$D2_ID]}"
 
   req POST "$TOKEN_NOTEAM" "$BASE_URL/reports" "$REPORT_BODY"
   assert "POST /reports as NO_TEAM — 400" "400" "$STATUS"
 
   req POST "$TOKEN_M1" "$BASE_URL/reports" "$REPORT_BODY"
-  assert "POST /reports as MEMBER1 — 201" "201" "$STATUS"
+  assert "POST /reports as MEMBER1 (Backend, in GTN) — 201" "201" "$STATUS"
   R1_ID=$(extract_id "$RESPONSE")
 
+  # Verify projectId and projectName are returned in response
+  if [ -n "$R1_ID" ]; then
+    assert_field "POST /reports response — projectId=1" "projectId" "1" "$RESPONSE"
+  fi
+
   req GET "$TOKEN_TA1" "$BASE_URL/reports"
-  assert "GET /reports as TEAM_ADMIN1 — 200 (own team reports)" "200" "$STATUS"
+  assert "GET /reports as TEAM_ADMIN1 (GTN member) — 200" "200" "$STATUS"
+
+  req GET "$TOKEN_M2" "$BASE_URL/reports"
+  assert "GET /reports as MEMBER2 (Devops, also GTN member) — 200" "200" "$STATUS"
 
   req GET "$TOKEN_NOTEAM" "$BASE_URL/reports"
   assert "GET /reports as NO_TEAM — 200 (empty list)" "200" "$STATUS"
 
   if [ -n "$R1_ID" ]; then
     req GET "$TOKEN_M1" "$BASE_URL/reports/$R1_ID"
-    assert "GET /reports/$R1_ID as MEMBER1 (own team) — 200" "200" "$STATUS"
+    assert "GET /reports/$R1_ID as MEMBER1 (GTN project member) — 200" "200" "$STATUS"
 
+    # MEMBER2 (Devops) is also in GTN project — should be allowed
     req GET "$TOKEN_M2" "$BASE_URL/reports/$R1_ID"
-    assert "GET /reports/$R1_ID as MEMBER2 (wrong team) — 403" "403" "$STATUS"
+    assert "GET /reports/$R1_ID as MEMBER2 (GTN project member) — 200" "200" "$STATUS"
 
     req GET "$TOKEN_ADMIN" "$BASE_URL/reports/$R1_ID"
     assert "GET /reports/$R1_ID as APP_ADMIN — 200" "200" "$STATUS"
+
+    # NO_TEAM cannot view any report (no team → not in any project)
+    req GET "$TOKEN_NOTEAM" "$BASE_URL/reports/$R1_ID"
+    assert "GET /reports/$R1_ID as NO_TEAM — 403" "403" "$STATUS"
 
     REPORT_UPDATE='{"title":"[SCRIPT] Updated Report"}'
 
@@ -413,6 +430,41 @@ if [ -n "$D2_ID" ]; then
     assert "DELETE /reports/$R1_ID as author (MEMBER1) — 204" "204" "$STATUS"
   else
     echo "  ⚠️  Report creation failed — skipping report detail tests"
+  fi
+
+  # Cross-project mix: create a second project and a decision in it, then attempt to
+  # mix decisions from both projects in one report
+  if [ -n "$D2_ID" ]; then
+    # Create a second project (APP_ADMIN only)
+    req POST "$TOKEN_ADMIN" "$BASE_URL/projects" \
+      '{"name":"[SCRIPT] Alt Project","description":"alt","organizationId":1}'
+    P2_ID=$(extract_id "$RESPONSE")
+
+    if [ -n "$P2_ID" ]; then
+      # Assign Backend team to P2 so MEMBER1 can create a decision there
+      req POST "$TOKEN_ADMIN" "$BASE_URL/projects/$P2_ID/teams" '{"teamId":1}'
+
+      # Create a decision in P2
+      D_P2_BODY="{\"title\":\"[SCRIPT] Decision in P2\",\"context\":\"ctx\",\"decision\":\"dec\",\"consequences\":\"cons\",\"projectId\":$P2_ID,\"teamIds\":[1]}"
+      req POST "$TOKEN_M1" "$BASE_URL/decisions" "$D_P2_BODY"
+      D_P2_ID=$(extract_id "$RESPONSE")
+
+      if [ -n "$D_P2_ID" ]; then
+        # Attempt to create a report mixing D2 (project 1) and D_P2 (P2) — must be 400
+        MIXED_BODY="{\"title\":\"[SCRIPT] Mixed Report\",\"projectId\":1,\"decisionIds\":[$D2_ID,$D_P2_ID]}"
+        req POST "$TOKEN_M1" "$BASE_URL/reports" "$MIXED_BODY"
+        assert "POST /reports mixing decisions from two projects — 400" "400" "$STATUS"
+
+        # Cleanup
+        req DELETE "$TOKEN_M1" "$BASE_URL/decisions/$D_P2_ID"
+      else
+        echo "  ⚠️  P2 decision creation failed — skipping cross-project mix test"
+      fi
+
+      req DELETE "$TOKEN_ADMIN" "$BASE_URL/projects/$P2_ID"
+    else
+      echo "  ⚠️  P2 creation failed — skipping cross-project mix test"
+    fi
   fi
 else
   echo "  ⚠️  No D2_ID available — skipping report tests"

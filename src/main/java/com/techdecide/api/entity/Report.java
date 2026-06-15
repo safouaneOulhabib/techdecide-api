@@ -28,6 +28,13 @@ public class Report {
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id", nullable = false)
+    private Project project;
+
+    @Column(name = "project_name")
+    private String projectName;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
