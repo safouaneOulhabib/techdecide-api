@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.techdecide.api.dto.report.*;
 import com.techdecide.api.entity.Decision;
+import com.techdecide.api.entity.Project;
+import com.techdecide.api.entity.ProjectTeam;
 import com.techdecide.api.entity.Report;
 import com.techdecide.api.entity.ReportItem;
 import com.techdecide.api.entity.User;
@@ -12,6 +14,8 @@ import com.techdecide.api.exception.BadRequestException;
 import com.techdecide.api.exception.ForbiddenException;
 import com.techdecide.api.exception.ResourceNotFoundException;
 import com.techdecide.api.repository.DecisionRepository;
+import com.techdecide.api.repository.ProjectRepository;
+import com.techdecide.api.repository.ProjectTeamRepository;
 import com.techdecide.api.repository.ReportRepository;
 import com.techdecide.api.repository.TeamMembershipRepository;
 import com.techdecide.api.repository.UserRepository;
@@ -35,9 +39,14 @@ public class ReportService {
     private final DecisionRepository decisionRepository;
     private final UserRepository userRepository;
     private final TeamMembershipRepository teamMembershipRepository;
+    private final ProjectRepository projectRepository;
+    private final ProjectTeamRepository projectTeamRepository;
     private final ObjectMapper objectMapper;
 
     public ReportDTO create(CreateReportRequest request, String authorEmail) {
+        if (request.getProjectId() == null) {
+            throw new BadRequestException("projectId is required");
+        }
         if (request.getDecisionIds() == null || request.getDecisionIds().isEmpty()) {
             throw new BadRequestException("A report must contain at least one decision");
         }
@@ -45,10 +54,17 @@ public class ReportService {
         User author = userRepository.findByEmail(authorEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User", null));
 
+        Project project = projectRepository.findById(request.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Project", request.getProjectId()));
+
         if (!"APP_ADMIN".equals(author.getAppRole())) {
-            teamMembershipRepository.findByUserId(author.getId())
-                    .orElseThrow(() -> new BadRequestException(
-                            "You must be assigned to a team to create reports"));
+            Long actorTeamId = teamMembershipRepository.findByUserId(author.getId())
+                    .map(tm -> tm.getTeam().getId())
+                    .orElseThrow(() -> new BadRequestException("You must be assigned to a team to create reports"));
+
+            if (!projectTeamRepository.existsByProjectIdAndTeamId(request.getProjectId(), actorTeamId)) {
+                throw new ForbiddenException("Your team is not assigned to this project");
+            }
         }
 
         List<ReportItem> items = new ArrayList<>();
@@ -57,6 +73,13 @@ public class ReportService {
             Decision decision = decisionRepository.findById(decisionId)
                     .orElseThrow(() -> new ResourceNotFoundException("Decision", decisionId));
 
+            if (!request.getProjectId().equals(decision.getProject().getId())) {
+                throw new BadRequestException(
+                        "All decisions must belong to the same project. Decision " + decisionId
+                        + " belongs to project " + decision.getProject().getId()
+                        + ", expected project " + request.getProjectId());
+            }
+
             ReportItem item = ReportItem.builder()
                     .originalDecisionId(decision.getId())
                     .decisionTitle(decision.getTitle())
@@ -64,7 +87,7 @@ public class ReportService {
                     .decisionContext(decision.getContext())
                     .decisionContent(decision.getDecision())
                     .decisionConsequences(decision.getConsequences())
-                    .decisionTeamName(decision.getProject() != null ? decision.getProject().getName() : null)
+                    .decisionTeamName(project.getName())
                     .decisionAuthorName(decision.getAuthor() != null ? decision.getAuthor().getName() : null)
                     .decisionCreatedAt(decision.getCreatedAt())
                     .alternativesJson(serializeAlternatives(decision))
@@ -77,6 +100,8 @@ public class ReportService {
                 .title(request.getTitle())
                 .introduction(request.getIntroduction())
                 .author(author)
+                .project(project)
+                .projectName(project.getName())
                 .items(items)
                 .build();
 
@@ -105,13 +130,15 @@ public class ReportService {
             return List.of();
         }
 
-        List<Long> teamUserIds = teamMembershipRepository.findByTeamId(actorTeamId)
-                .stream()
-                .map(tm -> tm.getUser().getId())
+        List<Long> projectIds = projectTeamRepository.findByTeamId(actorTeamId).stream()
+                .map(pt -> pt.getProject().getId())
                 .collect(Collectors.toList());
 
-        return reportRepository.findAll().stream()
-                .filter(r -> teamUserIds.contains(r.getAuthor().getId()))
+        if (projectIds.isEmpty()) {
+            return List.of();
+        }
+
+        return reportRepository.findByProjectIdIn(projectIds).stream()
                 .map(this::mapToSummaryDTO)
                 .collect(Collectors.toList());
     }
@@ -131,11 +158,8 @@ public class ReportService {
             if (actorTeamId == null) {
                 throw new ForbiddenException("You must be assigned to a team to view reports");
             }
-            Long authorTeamId = teamMembershipRepository.findByUserId(report.getAuthor().getId())
-                    .map(tm -> tm.getTeam().getId())
-                    .orElse(null);
-            if (!actorTeamId.equals(authorTeamId)) {
-                throw new ForbiddenException("You can only view reports from your team");
+            if (!projectTeamRepository.existsByProjectIdAndTeamId(report.getProject().getId(), actorTeamId)) {
+                throw new ForbiddenException("You are not a member of this report's project");
             }
         }
 
@@ -223,6 +247,8 @@ public class ReportService {
                 .introduction(report.getIntroduction())
                 .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
+                .projectId(report.getProject() != null ? report.getProject().getId() : null)
+                .projectName(report.getProjectName())
                 .createdAt(report.getCreatedAt())
                 .updatedAt(report.getUpdatedAt())
                 .items(itemDTOs)
@@ -255,6 +281,8 @@ public class ReportService {
                 .title(report.getTitle())
                 .authorId(report.getAuthor().getId())
                 .authorName(report.getAuthor().getName())
+                .projectId(report.getProject() != null ? report.getProject().getId() : null)
+                .projectName(report.getProjectName())
                 .createdAt(report.getCreatedAt())
                 .updatedAt(report.getUpdatedAt())
                 .itemCount(items.size())

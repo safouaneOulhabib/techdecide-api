@@ -23,4 +23,6 @@ public interface ProjectTeamRepository extends JpaRepository<ProjectTeam, Long> 
     boolean existsByProjectIdAndTeamId(Long projectId, Long teamId);
 
     void deleteByProjectIdAndTeamId(Long projectId, Long teamId);
+
+    void deleteAllByProjectId(Long projectId);
 }

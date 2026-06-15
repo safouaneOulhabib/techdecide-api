@@ -41,7 +41,7 @@ class ReportControllerTest {
                 .decisionTitle("Use PostgreSQL").decisionStatus("APPROVED")
                 .decisionContext("We need a DB").decisionContent("PostgreSQL chosen")
                 .decisionConsequences("Cost implications")
-                .decisionTeamName("Engineering").decisionAuthorName("Alice")
+                .decisionTeamName("GTN").decisionAuthorName("Alice")
                 .decisionCreatedAt(LocalDateTime.now())
                 .alternatives(List.of())
                 .position(0)
@@ -49,7 +49,9 @@ class ReportControllerTest {
 
         return ReportDTO.builder()
                 .id(1L).title("My Report").introduction("Intro")
-                .authorId(1L).authorName("Alice").createdAt(LocalDateTime.now())
+                .authorId(1L).authorName("Alice")
+                .projectId(1L).projectName("GTN")
+                .createdAt(LocalDateTime.now())
                 .items(List.of(item))
                 .build();
     }
@@ -57,12 +59,14 @@ class ReportControllerTest {
     private ReportSummaryDTO buildSummaryDTO() {
         return ReportSummaryDTO.builder()
                 .id(1L).title("My Report").authorId(1L).authorName("Alice")
+                .projectId(1L).projectName("GTN")
                 .createdAt(LocalDateTime.now()).itemCount(1)
                 .build();
     }
 
     private CreateReportRequest buildCreateRequest() {
         CreateReportRequest req = new CreateReportRequest();
+        req.setProjectId(1L);
         req.setTitle("My Report");
         req.setIntroduction("Intro");
         req.setDecisionIds(List.of(10L));

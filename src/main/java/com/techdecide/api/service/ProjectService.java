@@ -104,9 +104,10 @@ public class ProjectService {
 
     public void delete(Long id, String actorEmail) {
         requireAppAdmin(actorEmail);
-        Project project = projectRepository.findById(id)
+        projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id));
-        projectRepository.delete(project);
+        projectTeamRepository.deleteAllByProjectId(id);
+        projectRepository.deleteById(id);
     }
 
     public ProjectTeamDTO assignTeam(Long projectId, Long teamId, String actorEmail) {
