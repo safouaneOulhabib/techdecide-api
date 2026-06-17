@@ -122,7 +122,8 @@ class ProjectServiceTest {
 
         projectService.delete(100L, "admin@test.com");
 
-        verify(projectRepository).delete(any(Project.class));
+        verify(projectTeamRepository).deleteAllByProjectId(100L);
+        verify(projectRepository).deleteById(100L);
     }
 
     @Test
