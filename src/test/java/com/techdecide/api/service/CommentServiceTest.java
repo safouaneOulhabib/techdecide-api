@@ -24,6 +24,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CommentServiceTest {
+    // QA matrix coverage:
+    // COM-01 COM-02 COM-03 COM-04 COM-06 COM-07 COM-08 VIS-05
 
     @Mock private CommentRepository commentRepository;
     @Mock private DecisionRepository decisionRepository;
