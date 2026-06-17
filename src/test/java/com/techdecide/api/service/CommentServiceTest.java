@@ -25,7 +25,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CommentServiceTest {
     // QA matrix coverage:
-    // COM-01 COM-02 COM-03 COM-04 COM-06 COM-07 COM-08 VIS-05
+    // COM-01 COM-02 COM-03 COM-04 COM-06 COM-07 COM-08 COM-09 VIS-05
 
     @Mock private CommentRepository commentRepository;
     @Mock private DecisionRepository decisionRepository;
@@ -138,6 +138,32 @@ class CommentServiceTest {
         CommentDTO result = commentService.create(1L, req, "alice@example.com");
 
         assertThat(result.getVote()).isNull();
+    }
+
+    @Test
+    void create_COM_09_existingVote_updatesInsteadOfCreatingDuplicate() {
+        User alice = buildUser();
+        CreateCommentRequest req = new CreateCommentRequest();
+        req.setContent("Changing my vote");
+        req.setVote(Comment.Vote.REJECT);
+        Comment existingVote = buildComment();
+
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(buildDecision()));
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(alice));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(alice, buildTeam())));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(commentRepository.findFirstByDecisionIdAndAuthorIdAndVoteIsNotNull(1L, 1L))
+                .thenReturn(Optional.of(existingVote));
+        when(commentRepository.save(existingVote)).thenReturn(existingVote);
+
+        CommentDTO result = commentService.create(1L, req, "alice@example.com");
+
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getContent()).isEqualTo("Changing my vote");
+        assertThat(result.getVote()).isEqualTo(Comment.Vote.REJECT);
+        verify(commentRepository).save(existingVote);
+        verify(commentRepository, never()).save(argThat(c -> c != existingVote));
     }
 
     @Test

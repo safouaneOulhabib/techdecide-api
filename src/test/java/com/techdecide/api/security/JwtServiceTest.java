@@ -76,6 +76,16 @@ class JwtServiceTest {
     }
 
     @Test
+    void isTokenValid_SEC_08_statelessLogoutPolicy_tokenRemainsValidUntilExpiry() {
+        UserDetails userDetails = buildUser("logout-policy@example.com");
+        String token = jwtService.generateToken(userDetails);
+
+        boolean valid = jwtService.isTokenValid(token, userDetails);
+
+        assertThat(valid).isTrue();
+    }
+
+    @Test
     void isTokenValid_validTokenWrongUser_returnsFalse() {
         UserDetails owner = buildUser("owner@example.com");
         UserDetails other = buildUser("other@example.com");
