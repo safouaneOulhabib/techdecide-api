@@ -93,6 +93,7 @@ class DecisionControllerTest {
 
     @Test
     @WithMockUser
+    // QA matrix coverage: DEC-06
     void create_DEC_06_missingTitle_returns400() throws Exception {
         CreateDecisionRequest req = buildCreateRequest();
         req.setTitle(null);

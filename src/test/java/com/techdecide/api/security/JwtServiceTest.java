@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(MockitoExtension.class)
 class JwtServiceTest {
+    // QA matrix coverage: SEC-08
 
     private JwtService jwtService;
 
