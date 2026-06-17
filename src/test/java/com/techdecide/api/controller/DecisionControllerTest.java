@@ -93,7 +93,7 @@ class DecisionControllerTest {
 
     @Test
     @WithMockUser
-    void create_missingTitle_returns400() throws Exception {
+    void create_DEC_06_missingTitle_returns400() throws Exception {
         CreateDecisionRequest req = buildCreateRequest();
         req.setTitle(null);
 

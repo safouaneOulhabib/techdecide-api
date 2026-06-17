@@ -31,7 +31,7 @@ class DecisionServiceTest {
     // QA matrix coverage:
     // DEC-05 DEC-07 DEC-08 DEC-10 DEC-12 DEC-16 DEC-17 DEC-19 DEC-20
     // DEC-22 DEC-29 DEC-30 DEC-31 DEC-32 DEC-33 DEC-34 DEC-35
-    // VIS-01 VIS-06 COM-11 SEC-03 SEC-04 DATA-05
+    // VIS-01 VIS-06 COM-11 SEC-03 SEC-04 TAG-08 DATA-01 DATA-03 DATA-05
 
     @Mock private DecisionRepository decisionRepository;
     @Mock private DecisionTeamRepository decisionTeamRepository;
@@ -242,7 +242,7 @@ class DecisionServiceTest {
     }
 
     @Test
-    void create_withTagIds_fetchesTags() {
+    void create_TAG_08_withTagIds_fetchesTagsAndMapsThemToDTO() {
         CreateDecisionRequest req = buildCreateRequest();
         req.setTagIds(List.of(1L));
         Decision saved = buildDecision();
@@ -258,8 +258,38 @@ class DecisionServiceTest {
         when(decisionTeamRepository.saveAll(any())).thenReturn(List.of());
         when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of());
 
-        decisionService.create(req, "alice@example.com");
+        DecisionDTO result = decisionService.create(req, "alice@example.com");
+
+        assertThat(result.getTags()).hasSize(1);
+        assertThat(result.getTags().get(0).getName()).isEqualTo("backend");
         verify(tagRepository).findAllById(List.of(1L));
+    }
+
+    @Test
+    void create_DATA_03_unicodeAndEmojiFieldsAreMappedBack() {
+        CreateDecisionRequest req = buildCreateRequest();
+        req.setTitle("Décision 🚀");
+        req.setContext("Contexte عربي");
+        req.setDecision("Choisir PostgreSQL ✅");
+        Decision saved = buildDecision();
+        saved.setTitle(req.getTitle());
+        saved.setContext(req.getContext());
+        saved.setDecision(req.getDecision());
+
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(buildUser()));
+        when(teamMembershipRepository.findByUserId(1L))
+                .thenReturn(Optional.of(buildMembership(buildUser(), buildTeam1(), "MEMBER")));
+        when(projectTeamRepository.existsByProjectIdAndTeamId(1L, 1L)).thenReturn(true);
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(buildProject()));
+        when(decisionRepository.save(any())).thenReturn(saved);
+        when(decisionTeamRepository.saveAll(any())).thenReturn(List.of());
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of());
+
+        DecisionDTO result = decisionService.create(req, "alice@example.com");
+
+        assertThat(result.getTitle()).isEqualTo("Décision 🚀");
+        assertThat(result.getContext()).isEqualTo("Contexte عربي");
+        assertThat(result.getDecision()).isEqualTo("Choisir PostgreSQL ✅");
     }
 
     // ── getAll ───────────────────────────────────────────────────────────────
@@ -614,6 +644,31 @@ class DecisionServiceTest {
         DecisionDTO result = decisionService.updateStatus(1L, Decision.Status.SUPERSEDED, 2L, "admin@example.com");
         assertThat(result.getStatus()).isEqualTo(Decision.Status.SUPERSEDED);
         assertThat(result.getSupersededById()).isEqualTo(2L);
+    }
+
+    @Test
+    void getById_DATA_01_supersedeChainMapsImmediateSupersederWithoutError() {
+        Decision original = buildDecision();
+        original.setStatus(Decision.Status.SUPERSEDED);
+        Decision superseder = buildDecision();
+        superseder.setId(2L);
+        superseder.setTitle("Replacement B");
+        superseder.setStatus(Decision.Status.SUPERSEDED);
+        Decision finalDecision = buildDecision();
+        finalDecision.setId(3L);
+        finalDecision.setTitle("Replacement C");
+        finalDecision.setStatus(Decision.Status.APPROVED);
+        superseder.setSupersededBy(finalDecision);
+        original.setSupersededBy(superseder);
+
+        when(userRepository.findByEmail("admin@example.com")).thenReturn(Optional.of(buildAppAdmin()));
+        when(decisionRepository.findById(1L)).thenReturn(Optional.of(original));
+        when(decisionTeamRepository.findByDecisionId(1L)).thenReturn(List.of());
+
+        DecisionDTO result = decisionService.getById(1L, "admin@example.com");
+
+        assertThat(result.getSupersededById()).isEqualTo(2L);
+        assertThat(result.getSupersededByTitle()).isEqualTo("Replacement B");
     }
 
     @Test

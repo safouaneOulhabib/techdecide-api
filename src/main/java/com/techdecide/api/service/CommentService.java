@@ -46,6 +46,21 @@ public class CommentService {
             }
         }
 
+        if (request.getVote() != null) {
+            return commentRepository
+                    .findFirstByDecisionIdAndAuthorIdAndVoteIsNotNull(decisionId, author.getId())
+                    .map(existingVote -> {
+                        existingVote.setContent(request.getContent());
+                        existingVote.setVote(request.getVote());
+                        return mapToDTO(commentRepository.save(existingVote));
+                    })
+                    .orElseGet(() -> createNewComment(decision, author, request));
+        }
+
+        return createNewComment(decision, author, request);
+    }
+
+    private CommentDTO createNewComment(Decision decision, User author, CreateCommentRequest request) {
         Comment comment = Comment.builder()
                 .content(request.getContent())
                 .vote(request.getVote())
