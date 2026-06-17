@@ -33,6 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestSecurityConfig.class)
 class TeamMemberControllerTest {
 
+    // QA matrix coverage:
+    // SEC-01 TM-01 TM-02 TM-03 TM-04 TM-06 TM-19
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean TeamMemberService teamMemberService;

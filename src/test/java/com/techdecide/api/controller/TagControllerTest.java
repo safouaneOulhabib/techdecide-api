@@ -32,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestSecurityConfig.class)
 class TagControllerTest {
 
+    // QA matrix coverage:
+    // SEC-01 TAG-02 TAG-03 TAG-06 TAG-07
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean TagService tagService;

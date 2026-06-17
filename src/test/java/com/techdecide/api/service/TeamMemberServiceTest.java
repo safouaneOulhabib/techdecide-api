@@ -31,6 +31,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class TeamMemberServiceTest {
 
+    // QA matrix coverage:
+    // TM-01 TM-02 TM-03 TM-04 TM-05 TM-06 TM-08 TM-13
+    // TM-19 SEC-05 SEC-10 DATA-07
+
     @Mock private UserRepository userRepository;
     @Mock private TeamRepository teamRepository;
     @Mock private TeamMembershipRepository teamMembershipRepository;

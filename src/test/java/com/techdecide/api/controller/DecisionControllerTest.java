@@ -225,6 +225,20 @@ class DecisionControllerTest {
                 .andExpect(jsonPath("$[0].title").value("Use PostgreSQL"));
     }
 
+    @Test
+    @WithMockUser
+    // SEC-07
+    void search_SEC_07_sqlLikeKeyword_returns200AndDelegatesAsParameter() throws Exception {
+        String keyword = "' OR 1=1 --";
+        when(decisionService.search(keyword)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/decisions/search").param("keyword", keyword))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+
+        verify(decisionService).search(keyword);
+    }
+
     // --- PUT /api/decisions/{id} ---
 
     @Test

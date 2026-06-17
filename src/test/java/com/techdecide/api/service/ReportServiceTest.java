@@ -38,6 +38,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ReportServiceTest {
 
+    // QA matrix coverage:
+    // REP-03 REP-04 REP-05 REP-06 REP-07 REP-08 REP-09 REP-10
+    // REP-11 REP-12 REP-13 REP-14 DATA-04 DATA-05
+
     @Mock private ReportRepository reportRepository;
     @Mock private DecisionRepository decisionRepository;
     @Mock private UserRepository userRepository;

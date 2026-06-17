@@ -26,6 +26,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceTest {
 
+    // QA matrix coverage:
+    // PROJ-01 PROJ-02 PROJ-05 PROJ-06 PROJ-07 PROJ-08
+    // PROJ-09 PROJ-13 PROJ-14 SEC-02
+
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectTeamRepository projectTeamRepository;
     @Mock private OrganizationRepository organizationRepository;

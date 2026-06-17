@@ -31,6 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(CommentController.class)
 @Import(TestSecurityConfig.class)
 class CommentControllerTest {
+    // QA matrix coverage:
+    // COM-01 COM-02 COM-03 COM-04 COM-05 COM-06 COM-07 COM-08 SEC-01
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
