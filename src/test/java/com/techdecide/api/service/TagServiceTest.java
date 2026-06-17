@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
 class TagServiceTest {
 
     // QA matrix coverage:
-    // TAG-01 TAG-02 TAG-03 TAG-04 TAG-06 TAG-07
+    // TAG-01 TAG-02 TAG-03 TAG-04 TAG-06 TAG-07 SEC-02
 
     @Mock private TagRepository tagRepository;
     @Mock private UserRepository userRepository;

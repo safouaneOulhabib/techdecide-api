@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 class OrganizationServiceTest {
 
     // QA matrix coverage:
-    // ORG-01 ORG-02 ORG-03 ORG-04 ORG-06
+    // ORG-01 ORG-02 ORG-03 ORG-04 ORG-06 SEC-02
 
     @Mock private OrganizationRepository organizationRepository;
     @Mock private UserRepository userRepository;
