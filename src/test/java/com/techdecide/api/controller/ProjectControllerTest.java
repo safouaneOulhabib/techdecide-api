@@ -34,6 +34,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestSecurityConfig.class)
 class ProjectControllerTest {
 
+    // QA matrix coverage:
+    // SEC-01 PROJ-03 PROJ-04 PROJ-13
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean ProjectService projectService;

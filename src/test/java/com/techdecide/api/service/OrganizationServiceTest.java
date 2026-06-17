@@ -28,6 +28,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class OrganizationServiceTest {
 
+    // QA matrix coverage:
+    // ORG-01 ORG-02 ORG-03 ORG-04 ORG-06
+
     @Mock private OrganizationRepository organizationRepository;
     @Mock private UserRepository userRepository;
     @InjectMocks private OrganizationService organizationService;

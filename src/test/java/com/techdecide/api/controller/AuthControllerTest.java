@@ -27,6 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestSecurityConfig.class)
 class AuthControllerTest {
 
+    // QA matrix coverage:
+    // AUTH-01 AUTH-02 AUTH-03 AUTH-04 AUTH-05 AUTH-06 AUTH-07
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean AuthService authService;

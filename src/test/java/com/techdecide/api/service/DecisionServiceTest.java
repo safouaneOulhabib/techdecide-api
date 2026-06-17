@@ -28,6 +28,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class DecisionServiceTest {
 
+    // QA matrix coverage:
+    // DEC-05 DEC-07 DEC-08 DEC-10 DEC-12 DEC-16 DEC-17 DEC-19 DEC-20
+    // DEC-22 DEC-29 DEC-30 DEC-31 DEC-32 DEC-33 DEC-34 DEC-35
+    // VIS-01 VIS-06 COM-11 SEC-03 SEC-04 DATA-05
+
     @Mock private DecisionRepository decisionRepository;
     @Mock private DecisionTeamRepository decisionTeamRepository;
     @Mock private ProjectRepository projectRepository;

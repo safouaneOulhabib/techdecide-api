@@ -26,6 +26,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class TagServiceTest {
 
+    // QA matrix coverage:
+    // TAG-01 TAG-02 TAG-03 TAG-04 TAG-06 TAG-07
+
     @Mock private TagRepository tagRepository;
     @Mock private UserRepository userRepository;
     @InjectMocks private TagService tagService;
